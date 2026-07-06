@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FOMO - Social Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            DEFAULT: '#5B52E7',
+                            light: '#EEF2FF',
+                            hover: '#4C43D4'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #F8FAFC;
+        }
+        /* Custom scrollbar matching clean UI */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="font-sans text-gray-900 antialiased min-h-screen pb-12">
+
+    <nav class="sticky top-0 z-50 bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between shadow-sm">
+        <div class="flex items-center space-x-3 cursor-pointer">
+            <div class="w-9 h-9 bg-brand rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md shadow-brand/20">F</div>
+            <span class="text-xl font-bold tracking-tight text-gray-900">FOMO</span>
+        </div>
+
+        <div class="flex items-center space-x-1 bg-gray-50 p-1 rounded-xl border border-gray-100">
+            <button onclick="switchTab('home')" id="tab-home" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 bg-brand-light text-brand">
+                <i class="fa-solid fa-house"></i> <span>Home</span>
+            </button>
+            <button onclick="switchTab('explore')" id="tab-explore" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 text-gray-500 hover:text-gray-900">
+                <i class="fa-solid fa-compass"></i> <span>Explore</span>
+            </button>
+            <button onclick="switchTab('messages')" id="tab-messages" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 text-gray-500 hover:text-gray-900 relative">
+                <i class="fa-solid fa-comment-dots"></i> <span>Messages</span>
+                <span class="absolute -top-1 -right-1 bg-cyan-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">4</span>
+            </button>
+            <button onclick="switchTab('notifications')" id="tab-notifications" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 text-gray-500 hover:text-gray-900 relative">
+                <i class="fa-solid fa-bell"></i> <span>Notifications</span>
+                <span class="absolute -top-1 -right-1 bg-cyan-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white">3</span>
+            </button>
+            <button onclick="switchTab('communities')" id="tab-communities" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 text-gray-500 hover:text-gray-900">
+                <i class="fa-solid fa-users"></i> <span>Communities</span>
+            </button>
+            <button onclick="switchTab('profile')" id="tab-profile" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 text-gray-500 hover:text-gray-900">
+                <i class="fa-solid fa-user"></i> <span>Profile</span>
+            </button>
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <button class="bg-brand hover:bg-brand-hover text-white px-5 py-2 rounded-full text-sm font-medium shadow-md shadow-brand/10 transition flex items-center space-x-2">
+                <i class="fa-solid fa-plus text-xs"></i> <span>Create</span>
+            </button>
+            <div class="flex items-center space-x-2 cursor-pointer group" onclick="switchTab('profile')">
+                <div class="relative">
+                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Alex Avatar" class="w-8 h-8 rounded-full object-cover border border-gray-200">
+                    <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+                </div>
+                <span class="text-sm font-semibold text-gray-700 group-hover:text-gray-900">Alex</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-[1240px] mx-auto px-6 mt-8">
+
+        <div id="view-home" class="tab-view grid grid-cols-12 gap-8">
+            <div class="col-span-8 space-y-6">
+                <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-center space-x-5 overflow-x-auto no-scrollbar">
+                    <div class="flex flex-col items-center space-y-2 flex-shrink-0 cursor-pointer">
+                        <div class="relative p-[2px]">
+                            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" class="w-14 h-14 rounded-full object-cover border-2 border-white">
+                            <div class="absolute bottom-0 right-0 w-5 h-5 bg-brand text-white rounded-full flex items-center justify-center text-xs border-2 border-white font-bold">+</div>
+                        </div>
+                        <span class="text-xs font-medium text-gray-500">Your story</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-shrink-0 cursor-pointer">
+                        <div class="p-[2px] rounded-full bg-gradient-to-tr from-pink-500 to-rose-400">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-14 h-14 rounded-full object-cover border-2 border-white">
+                        </div>
+                        <span class="text-xs font-medium text-gray-700">Sofia</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-shrink-0 cursor-pointer">
+                        <div class="p-[2px] rounded-full bg-gradient-to-tr from-brand to-cyan-400">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" class="w-14 h-14 rounded-full object-cover border-2 border-white">
+                        </div>
+                        <span class="text-xs font-medium text-gray-700">Marcus</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-shrink-0 cursor-pointer">
+                        <div class="p-[2px] rounded-full bg-gradient-to-tr from-purple-500 to-indigo-400">
+                            <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&q=80" class="w-14 h-14 rounded-full object-cover border-2 border-white">
+                        </div>
+                        <span class="text-xs font-medium text-gray-700">Priya</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-shrink-0 cursor-pointer">
+                        <div class="p-[2px] rounded-full bg-gray-200">
+                            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80" class="w-14 h-14 rounded-full object-cover border-2 border-white">
+                        </div>
+                        <span class="text-xs font-medium text-gray-700">Jordan</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-shrink-0 cursor-pointer">
+                        <div class="p-[2px] rounded-full bg-gradient-to-tr from-purple-600 to-blue-400">
+                            <img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=100&q=80" class="w-14 h-14 rounded-full object-cover border-2 border-white">
+                        </div>
+                        <span class="text-xs font-medium text-gray-700">Zara</span>
+                    </div>
+                    <div class="flex flex-col items-center space-y-2 flex-shrink-0 cursor-pointer">
+                        <div class="p-[2px] rounded-full bg-gray-200">
+                            <img src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=100&q=80" class="w-14 h-14 rounded-full object-cover border-2 border-white">
+                        </div>
+                        <span class="text-xs font-medium text-gray-700">Kai</span>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4">
+                    <div class="flex items-center space-x-4">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Alex Avatar" class="w-10 h-10 rounded-full object-cover border border-gray-100">
+                        <input type="text" placeholder="What's on your mind, Alex?" class="w-full bg-transparent border-none text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-0 text-base">
+                    </div>
+                    <hr class="border-gray-100">
+                    <div class="flex items-center justify-between pt-1">
+                        <div class="flex items-center space-x-5 text-gray-400">
+                            <button class="hover:text-brand transition"><i class="fa-regular fa-image text-lg"></i></button>
+                            <button class="hover:text-brand transition"><i class="fa-solid fa-camera text-lg"></i></button>
+                            <button class="hover:text-brand transition"><i class="fa-regular fa-face-smile text-lg"></i></button>
+                            <button class="hover:text-brand transition"><i class="fa-solid fa-hashtag text-lg"></i></button>
+                            <button class="hover:text-brand transition"><i class="fa-solid fa-globe text-lg"></i></button>
+                        </div>
+                        <button class="bg-brand/50 text-white font-medium px-6 py-2 rounded-xl text-sm cursor-not-allowed">Post</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="relative">
+                                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                                <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+                            </div>
+                            <div>
+                                <div class="flex items-center space-x-1.5">
+                                    <span class="font-bold text-gray-900 text-sm hover:underline cursor-pointer">Sofia Chen</span>
+                                    <i class="fa-solid fa-circle-check text-blue-500 text-xs"></i>
+                                </div>
+                                <span class="text-xs text-gray-400">@sofiachen · 2h ago</span>
+                            </div>
+                        </div>
+                        <button class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-ellipsis text-lg"></i></button>
+                    </div>
+                    <p class="text-gray-700 leading-relaxed text-sm">
+                        Just shipped something huge at work today. Six months of late nights, weekends, and countless iterations — and it finally clicked. Reminder: great things take time, and that's okay. 🚀 <span class="text-brand font-medium cursor-pointer">#product #design</span>
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <div>
+                                <div class="flex items-center space-x-1.5">
+                                    <span class="font-bold text-gray-900 text-sm hover:underline cursor-pointer">Marcus Johnson</span>
+                                    <i class="fa-solid fa-circle-check text-blue-500 text-xs"></i>
+                                </div>
+                                <span class="text-xs text-gray-400">@marcusjohn · 4h ago</span>
+                            </div>
+                        </div>
+                        <button class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-ellipsis text-lg"></i></button>
+                    </div>
+                    <p class="text-gray-700 leading-relaxed text-sm">
+                        Spent the weekend at Electric Forest and my soul is completely renewed. There's something about 60,000 people all vibrating on the same frequency that just... resets everything. 🌲 🎶
+                    </p>
+                    <div class="rounded-xl overflow-hidden max-h-[380px] border border-gray-100 shadow-inner">
+                        <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80" alt="Concert Stage Crowd" class="w-full h-full object-cover">
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-span-4 space-y-6">
+                <div class="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex items-center space-x-3">
+                    <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
+                    <input type="text" placeholder="Search FOMO..." class="w-full bg-transparent border-none text-sm placeholder-gray-400 focus:outline-none focus:ring-0">
+                </div>
+
+                <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-5">
+                    <div class="flex items-center space-x-2 text-gray-900 font-bold text-base">
+                        <i class="fa-solid fa-arrow-trend-up text-brand"></i>
+                        <span>Trending now</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="cursor-pointer group">
+                            <div class="flex items-center space-x-1">
+                                <span class="font-semibold text-gray-800 text-sm group-hover:text-brand">#DesignSystems</span>
+                                <i class="fa-solid fa-fire text-amber-500 text-xs"></i>
+                            </div>
+                            <span class="text-xs text-gray-400">24.2K posts</span>
+                        </div>
+                        <div class="cursor-pointer group">
+                            <div class="flex items-center space-x-1">
+                                <span class="font-semibold text-gray-800 text-sm group-hover:text-brand">#AIArt</span>
+                                <i class="fa-solid fa-fire text-amber-500 text-xs"></i>
+                            </div>
+                            <span class="text-xs text-gray-400">18.7K posts</span>
+                        </div>
+                        <div class="cursor-pointer group">
+                            <span class="font-semibold text-gray-800 text-sm group-hover:text-brand">#WebDev</span>
+                            <div class="text-xs text-gray-400">12.4K posts</div>
+                        </div>
+                        <div class="cursor-pointer group">
+                            <span class="font-semibold text-gray-800 text-sm group-hover:text-brand">#Minimalism</span>
+                            <div class="text-xs text-gray-400">9.8K posts</div>
+                        </div>
+                        <div class="cursor-pointer group">
+                            <span class="font-semibold text-gray-800 text-sm group-hover:text-brand">#OpenSource</span>
+                            <div class="text-xs text-gray-400">7.2K posts</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="view-explore" class="tab-view hidden max-w-3xl mx-auto space-y-6">
+            <div class="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm space-y-4">
+                <div class="flex items-center space-x-3 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+                    <i class="fa-solid fa-magnifying-glass text-gray-400 text-base"></i>
+                    <input type="text" placeholder="Search users, posts, topics..." class="w-full bg-transparent border-none text-sm placeholder-gray-400 focus:outline-none focus:ring-0">
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button class="bg-brand text-white px-4 py-1.5 rounded-lg text-xs font-semibold">All</button>
+                    <button class="text-gray-500 hover:bg-gray-100 px-4 py-1.5 rounded-lg text-xs font-semibold transition">People</button>
+                    <button class="text-gray-500 hover:bg-gray-100 px-4 py-1.5 rounded-lg text-xs font-semibold transition">Posts</button>
+                    <button class="text-gray-500 hover:bg-gray-100 px-4 py-1.5 rounded-lg text-xs font-semibold transition">Tags</button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+                <div class="flex items-center space-x-2 text-gray-900 font-bold text-base">
+                    <i class="fa-solid fa-arrow-trend-up text-brand"></i>
+                    <span>Trending Topics</span>
+                </div>
+                <div class="flex flex-wrap gap-2.5">
+                    <div class="border border-gray-200 hover:border-brand rounded-full px-4 py-2 text-xs font-medium text-brand bg-brand-light flex items-center space-x-1.5 cursor-pointer transition">
+                        <span>#DesignSystems</span> <i class="fa-solid fa-fire text-amber-500"></i> <span class="text-gray-400 font-normal">24.2K posts</span>
+                    </div>
+                    <div class="border border-gray-200 hover:border-brand rounded-full px-4 py-2 text-xs font-medium text-brand bg-brand-light flex items-center space-x-1.5 cursor-pointer transition">
+                        <span>#AIArt</span> <i class="fa-solid fa-fire text-amber-500"></i> <span class="text-gray-400 font-normal">18.7K posts</span>
+                    </div>
+                    <div class="border border-gray-100 hover:border-gray-200 rounded-full px-4 py-2 text-xs font-medium text-gray-700 bg-gray-50 flex items-center space-x-1.5 cursor-pointer transition">
+                        <span>#WebDev</span> <span class="text-gray-400 font-normal">12.4K posts</span>
+                    </div>
+                    <div class="border border-gray-100 hover:border-gray-200 rounded-full px-4 py-2 text-xs font-medium text-gray-700 bg-gray-50 flex items-center space-x-1.5 cursor-pointer transition">
+                        <span>#Minimalism</span> <span class="text-gray-400 font-normal">9.8K posts</span>
+                    </div>
+                    <div class="border border-gray-100 hover:border-gray-200 rounded-full px-4 py-2 text-xs font-medium text-gray-700 bg-gray-50 flex items-center space-x-1.5 cursor-pointer transition">
+                        <span>#OpenSource</span> <span class="text-gray-400 font-normal">7.2K posts</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+                <div class="flex items-center space-x-2 text-gray-900 font-bold text-base">
+                    <i class="fa-regular fa-star text-brand"></i>
+                    <span>Featured Creators</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-11 h-11 rounded-full object-cover">
+                            <div>
+                                <div class="flex items-center space-x-1">
+                                    <span class="font-bold text-sm text-gray-900">Sofia Chen</span>
+                                    <i class="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>
+                                </div>
+                                <span class="text-xs text-gray-400">@sofiachen · 48.2K followers</span>
+                            </div>
+                        </div>
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm">Follow</button>
+                    </div>
+
+                    <div class="border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" class="w-11 h-11 rounded-full object-cover">
+                            <div>
+                                <div class="flex items-center space-x-1">
+                                    <span class="font-bold text-sm text-gray-900">Marcus Johnson</span>
+                                    <i class="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>
+                                </div>
+                                <span class="text-xs text-gray-400">@marcusjohn · 92.1K followers</span>
+                            </div>
+                        </div>
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm">Follow</button>
+                    </div>
+
+                    <div class="border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&q=80" class="w-11 h-11 rounded-full object-cover">
+                            <div>
+                                <div class="flex items-center space-x-1">
+                                    <span class="font-bold text-sm text-gray-900">Priya Sharma</span>
+                                    <i class="fa-solid fa-circle-check text-blue-500 text-[10px]"></i>
+                                </div>
+                                <span class="text-xs text-gray-400">@priyasharma · 34.5K followers</span>
+                            </div>
+                        </div>
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm">Follow</button>
+                    </div>
+
+                    <div class="border border-gray-100 rounded-xl p-4 flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80" class="w-11 h-11 rounded-full object-cover">
+                            <div>
+                                <div class="flex items-center space-x-1">
+                                    <span class="font-bold text-sm text-gray-900">Jordan Lee</span>
+                                </div>
+                                <span class="text-xs text-gray-400">@jordanlee · 12.8K followers</span>
+                            </div>
+                        </div>
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm">Follow</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="view-messages" class="tab-view hidden grid grid-cols-12 gap-0 border border-gray-100 bg-white rounded-2xl shadow-sm overflow-hidden min-h-[580px]">
+            <div class="col-span-4 border-r border-gray-100 flex flex-col">
+                <div class="p-4 border-b border-gray-50 flex items-center space-x-2 bg-gray-50/50">
+                    <i class="fa-solid fa-magnifying-glass text-gray-400 text-xs"></i>
+                    <input type="text" placeholder="Search messages..." class="w-full bg-transparent border-none text-xs placeholder-gray-400 focus:outline-none focus:ring-0">
+                </div>
+                <div class="flex-1 overflow-y-auto divide-y divide-gray-50">
+                    <div class="p-4 flex items-start space-x-3 bg-brand-light/40 cursor-pointer border-l-4 border-brand">
+                        <div class="relative flex-shrink-0">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-0.5">
+                                <span class="font-bold text-sm text-gray-900 truncate">Sofia Chen</span>
+                                <span class="text-[10px] text-gray-400">2m ago</span>
+                            </div>
+                            <p class="text-xs text-gray-600 truncate font-medium">That looks absolutely ama...</p>
+                        </div>
+                        <span class="bg-cyan-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">3</span>
+                    </div>
+                    <div class="p-4 flex items-start space-x-3 cursor-pointer hover:bg-gray-50 transition">
+                        <div class="relative flex-shrink-0">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-gray-300 border-2 border-white rounded-full"></span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-0.5">
+                                <span class="font-bold text-sm text-gray-800 truncate">Marcus Johnson</span>
+                                <span class="text-[10px] text-gray-400">1h ago</span>
+                            </div>
+                            <p class="text-xs text-gray-400 truncate">Can't wait to collaborate on so...</p>
+                        </div>
+                    </div>
+                    <div class="p-4 flex items-start space-x-3 cursor-pointer hover:bg-gray-50 transition">
+                        <div class="relative flex-shrink-0">
+                            <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-0.5">
+                                <span class="font-bold text-sm text-gray-800 truncate">Priya Sharma</span>
+                                <span class="text-[10px] text-gray-400">3h ago</span>
+                            </div>
+                            <p class="text-xs text-gray-400 truncate">Photos from Kyoto are up ...</p>
+                        </div>
+                        <span class="bg-cyan-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">1</span>
+                    </div>
+                    <div class="p-4 flex items-start space-x-3 cursor-pointer hover:bg-gray-50 transition">
+                        <div class="relative flex-shrink-0">
+                            <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full"></span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between mb-0.5">
+                                <span class="font-bold text-sm text-gray-800 truncate">Jordan Lee</span>
+                                <span class="text-[10px] text-gray-400">Yesterday</span>
+                            </div>
+                            <p class="text-xs text-gray-400 truncate">That Rust article you shared w...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-span-8 flex flex-col bg-gray-50/30">
+                <div class="flex-1 p-6 overflow-y-auto space-y-6 text-sm">
+                    <div class="flex items-start space-x-3 max-w-[75%]">
+                        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-8 h-8 rounded-full object-cover mt-0.5">
+                        <div class="space-y-1">
+                            <div class="bg-white border border-gray-100 text-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-none shadow-sm">
+                                Hey! Did you see the new design system I posted?
+                            </div>
+                            <span class="text-[10px] text-gray-400 ml-1">10:42 AM</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3 max-w-[75%] ml-auto justify-end">
+                        <div class="space-y-1 text-right">
+                            <div class="bg-brand text-white px-4 py-2.5 rounded-2xl rounded-tr-none shadow-sm text-left">
+                                Yes! It's gorgeous. I love the color palette you went with
+                            </div>
+                            <div class="text-[10px] text-gray-400 mr-1 flex items-center justify-end space-x-1">
+                                <span>10:44 AM</span> <i class="fa-solid fa-check-double text-brand"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3 max-w-[75%]">
+                        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-8 h-8 rounded-full object-cover mt-0.5">
+                        <div class="space-y-1">
+                            <div class="bg-white border border-gray-100 text-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-none shadow-sm">
+                                Thanks! Took forever to get the indigo just right 🥰
+                            </div>
+                            <span class="text-[10px] text-gray-400 ml-1">10:45 AM</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3 max-w-[75%] ml-auto justify-end">
+                        <div class="space-y-1 text-right">
+                            <div class="bg-brand text-white px-4 py-2.5 rounded-2xl rounded-tr-none shadow-sm text-left">
+                                I can imagine. The contrast ratios must have been a nightmare
+                            </div>
+                            <div class="text-[10px] text-gray-400 mr-1 flex items-center justify-end space-x-1">
+                                <span>10:46 AM</span> <i class="fa-solid fa-check-double text-brand"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start space-x-3 max-w-[75%]">
+                        <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-8 h-8 rounded-full object-cover mt-0.5">
+                        <div class="space-y-1">
+                            <div class="bg-white border border-gray-100 text-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-none shadow-sm">
+                                That looks absolutely amazing! ✨
+                            </div>
+                            <span class="text-[10px] text-gray-400 ml-1">10:48 AM</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-white border-t border-gray-100 flex items-center space-x-3">
+                    <button class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-plus text-base"></i></button>
+                    <div class="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 flex items-center justify-between">
+                        <input type="text" placeholder="Message..." class="w-full bg-transparent border-none text-xs placeholder-gray-400 focus:outline-none focus:ring-0">
+                        <button class="text-brand hover:text-brand-hover ml-2"><i class="fa-solid fa-paper-plane text-sm"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="view-notifications" class="tab-view hidden max-w-2xl mx-auto bg-white border border-gray-100 rounded-2xl shadow-sm p-6 space-y-6">
+            <div class="text-[11px] font-bold tracking-wider text-gray-400 uppercase">Today</div>
+            
+            <div class="divide-y divide-gray-50">
+                <div class="py-4 flex items-center justify-between first:pt-0">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <div class="absolute -bottom-1 -right-1 bg-rose-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white">
+                                <i class="fa-solid fa-heart"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800"><span class="font-bold text-gray-900 cursor-pointer hover:underline">Sofia Chen</span> liked your recent post</div>
+                            <div class="text-xs text-gray-400 mt-0.5">"Just shipped something huge..." · 2m ago</div>
+                        </div>
+                    </div>
+                    <div class="w-2.5 h-2.5 bg-cyan-500 rounded-full"></div>
+                </div>
+
+                <div class="py-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <img src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <div class="absolute -bottom-1 -right-1 bg-brand text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white">
+                                <i class="fa-solid fa-user-plus"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800"><span class="font-bold text-gray-900 cursor-pointer hover:underline">Zara Williams</span> started following you</div>
+                            <div class="text-xs text-gray-400 mt-0.5">15m ago</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm">Follow</button>
+                        <div class="w-2.5 h-2.5 bg-cyan-500 rounded-full"></div>
+                    </div>
+                </div>
+
+                <div class="py-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <img src="https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <div class="absolute -bottom-1 -right-1 bg-cyan-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white">
+                                <i class="fa-solid fa-comment"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800"><span class="font-bold text-gray-900 cursor-pointer hover:underline">Priya Sharma</span> commented on your post</div>
+                            <div class="text-xs text-gray-600 font-medium bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 mt-1">"Love this perspective! 🙌"</div>
+                            <div class="text-xs text-gray-400 mt-0.5">1h ago</div>
+                        </div>
+                    </div>
+                    <div class="w-2.5 h-2.5 bg-cyan-500 rounded-full"></div>
+                </div>
+
+                <div class="py-4 flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <img src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <div class="absolute -bottom-1 -right-1 bg-purple-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white">
+                                <span class="font-bold">@</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800"><span class="font-bold text-gray-900 cursor-pointer hover:underline">Kai Nakamura</span> mentioned you in a comment</div>
+                            <div class="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 mt-1">"@alexrivera nailed it!"</div>
+                            <div class="text-xs text-gray-400 mt-0.5">2h ago</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="py-4 flex items-center justify-between last:pb-0">
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&q=80" class="w-10 h-10 rounded-full object-cover">
+                            <div class="absolute -bottom-1 -right-1 bg-rose-500 text-white w-4 h-4 rounded-full flex items-center justify-center text-[8px] border border-white">
+                                <i class="fa-solid fa-heart"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-800"><span class="font-bold text-gray-900 cursor-pointer hover:underline">Marcus Johnson</span> and 47 others liked your post</div>
+                            <div class="text-xs text-gray-400 mt-0.5">3h ago</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="view-communities" class="tab-view hidden space-y-6">
+            <div class="flex items-center justify-center mb-6">
+                <div class="bg-gray-100/80 p-1 border border-gray-200/40 rounded-xl flex items-center space-x-1 w-full max-w-xl">
+                    <button class="bg-brand text-white shadow-sm flex-1 text-center py-2 text-sm font-semibold rounded-lg">Discover</button>
+                    <button class="text-gray-500 hover:text-gray-800 flex-1 text-center py-2 text-sm font-semibold rounded-lg transition">My Communities</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between">
+                    <div>
+                        <div class="relative h-36 bg-gray-200">
+                            <img src="https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=600&q=80" alt="Design Art Header" class="w-full h-full object-cover">
+                            <span class="absolute top-3 right-3 bg-white/90 backdrop-blur text-gray-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm">Design</span>
+                        </div>
+                        <div class="p-5 space-y-2">
+                            <h3 class="font-bold text-base text-gray-900 hover:underline cursor-pointer">Design Nerds</h3>
+                            <p class="text-xs text-gray-500 leading-relaxed">A community for designers who obsess over the details. Typography, systems, craft — all welcome.</p>
+                        </div>
+                    </div>
+                    <div class="p-5 pt-0 flex items-center justify-between">
+                        <div class="flex items-center space-x-3 text-xs text-gray-400">
+                            <span><i class="fa-solid fa-users mr-1"></i> 12.4K members</span>
+                            <span><i class="fa-solid fa-file-pen mr-1"></i> 3.4K posts</span>
+                        </div>
+                        <button class="border border-gray-200 text-gray-500 text-xs font-semibold px-4 py-1.5 rounded-lg hover:bg-gray-50 transition flex items-center space-x-1.5">
+                            <span>Joined</span> <i class="fa-solid fa-check text-[10px]"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between">
+                    <div>
+                        <div class="relative h-36 bg-gray-200">
+                            <img src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=600&q=80" alt="Code Header" class="w-full h-full object-cover">
+                            <span class="absolute top-3 right-3 bg-white/90 backdrop-blur text-gray-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm">Technology</span>
+                        </div>
+                        <div class="p-5 space-y-2">
+                            <h3 class="font-bold text-base text-gray-900 hover:underline cursor-pointer">Tech Builders</h3>
+                            <p class="text-xs text-gray-500 leading-relaxed">For developers, founders, and makers building the next generation of software and tools.</p>
+                        </div>
+                    </div>
+                    <div class="p-5 pt-0 flex items-center justify-between">
+                        <div class="flex items-center space-x-3 text-xs text-gray-400">
+                            <span><i class="fa-solid fa-users mr-1"></i> 89.2K members</span>
+                            <span><i class="fa-solid fa-file-pen mr-1"></i> 18.9K posts</span>
+                        </div>
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-1.5 rounded-lg shadow-sm">Join</button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between">
+                    <div>
+                        <div class="relative h-36 bg-gray-200">
+                            <img src="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&q=80" alt="Mountains Travel" class="w-full h-full object-cover">
+                            <span class="absolute top-3 right-3 bg-white/90 backdrop-blur text-gray-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm">Travel</span>
+                        </div>
+                        <div class="p-5 space-y-2">
+                            <h3 class="font-bold text-base text-gray-900 hover:underline cursor-pointer">Wanderlust Collective</h3>
+                            <p class="text-xs text-gray-500 leading-relaxed">Sharing hidden gems, itineraries, and stories from paths less traveled across the globe.</p>
+                        </div>
+                    </div>
+                    <div class="p-5 pt-0 flex items-center justify-between">
+                        <div class="flex items-center space-x-3 text-xs text-gray-400">
+                            <span><i class="fa-solid fa-users mr-1"></i> 43.1K members</span>
+                            <span><i class="fa-solid fa-file-pen mr-1"></i> 8.2K posts</span>
+                        </div>
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-1.5 rounded-lg shadow-sm">Join</button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between">
+                    <div>
+                        <div class="relative h-36 bg-gray-200">
+                            <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80" alt="Music Stage Concert" class="w-full h-full object-cover">
+                            <span class="absolute top-3 right-3 bg-white/90 backdrop-blur text-gray-900 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm">Music</span>
+                        </div>
+                        <div class="p-5 space-y-2">
+                            <h3 class="font-bold text-base text-gray-900 hover:underline cursor-pointer">Sound & Rhythm</h3>
+                            <p class="text-xs text-gray-500 leading-relaxed">From lo-fi bedroom beats to underground techno. Reviewing tracks, equipment, and festivals live.</p>
+                        </div>
+                    </div>
+                    <div class="p-5 pt-0 flex items-center justify-between">
+                        <div class="flex items-center space-x-3 text-xs text-gray-400">
+                            <span><i class="fa-solid fa-users mr-1"></i> 26.7K members</span>
+                            <span><i class="fa-solid fa-file-pen mr-1"></i> 5.1K posts</span>
+                        </div>
+                        <button class="bg-brand hover:bg-brand-hover text-white text-xs font-semibold px-5 py-1.5 rounded-lg shadow-sm">Join</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="view-profile" class="tab-view hidden max-w-4xl mx-auto space-y-6">
+            <div class="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden relative">
+                <div class="h-48 bg-gray-300 relative">
+                    <img src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80" alt="Cityscape Cover Banner" class="w-full h-full object-cover">
+                    <button class="absolute top-4 right-4 bg-black/50 hover:bg-black/60 backdrop-blur text-white text-xs font-medium px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition">
+                        <i class="fa-regular fa-image"></i> <span>Edit cover</span>
+                    </button>
+                </div>
+                <div class="px-6 pb-6 relative">
+                    <div class="absolute -top-16 left-6">
+                        <div class="relative">
+                            <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80" alt="Alex Large Avatar" class="w-28 h-28 rounded-full object-cover border-4 border-white shadow-sm">
+                            <span class="absolute bottom-1 right-2 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-3 pt-4">
+                        <button class="border border-gray-200 text-gray-700 text-xs font-semibold px-4 py-2 rounded-xl hover:bg-gray-50 flex items-center space-x-1.5 transition">
+                            <i class="fa-solid fa-pen text-[10px]"></i> <span>Edit profile</span>
+                        </button>
+                        <button class="border border-gray-200 text-gray-700 text-xs font-semibold px-3 py-2 rounded-xl hover:bg-gray-50 transition">
+                            <i class="fa-solid fa-gear"></i>
+                        </button>
+                    </div>
+
+                    <div class="mt-6 space-y-3">
+                        <div>
+                            <div class="flex items-center space-x-1.5">
+                                <h2 class="text-xl font-bold text-gray-900">Alex Rivera</h2>
+                                <i class="fa-solid fa-circle-check text-blue-500 text-sm"></i>
+                            </div>
+                            <span class="text-xs text-gray-400">@alexrivera</span>
+                        </div>
+                        <p class="text-xs text-gray-600 font-medium flex items-center space-x-1.5">
+                            <span>Designer & creator</span> <span>·</span> <span>Building beautiful things</span> <span>✦</span> <span class="text-gray-400"><i class="fa-solid fa-location-dot text-[10px] mr-0.5"></i> NYC</span>
+                        </p>
+                        <div class="flex items-center space-x-6 pt-2 border-t border-gray-50">
+                            <div class="text-xs text-gray-500"><strong class="text-gray-900 font-bold text-sm">247</strong> Posts</div>
+                            <div class="text-xs text-gray-500"><strong class="text-gray-900 font-bold text-sm">12.4K</strong> Followers</div>
+                            <div class="text-xs text-gray-500"><strong class="text-gray-900 font-bold text-sm">891</strong> Following</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white border border-gray-100 rounded-xl shadow-sm p-1.5 flex items-center justify-center max-w-sm mx-auto">
+                <button class="flex-1 text-center py-2 text-xs font-bold text-brand bg-brand-light rounded-lg flex items-center justify-center space-x-1.5">
+                    <i class="fa-solid fa-table-cells text-[10px]"></i> <span>Posts</span>
+                </button>
+                <button class="flex-1 text-center py-2 text-xs font-medium text-gray-400 hover:text-gray-700 rounded-lg flex items-center justify-center space-x-1.5 transition">
+                    <i class="fa-regular fa-image text-[10px]"></i> <span>Media</span>
+                </button>
+                <button class="flex-1 text-center py-2 text-xs font-medium text-gray-400 hover:text-gray-700 rounded-lg flex items-center justify-center space-x-1.5 transition">
+                    <i class="fa-regular fa-bookmark text-[10px]"></i> <span>Saved</span>
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function switchTab(targetTab) {
+            // Hide all tab content panes
+            document.querySelectorAll('.tab-view').forEach(view => {
+                view.classList.add('hidden');
+            });
+            
+            // Revert all header top tab bar icons back to basic state classes 
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = "tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 text-gray-500 hover:text-gray-900 relative";
+            });
+
+            // Make designated target tab view visible 
+            document.getElementById('view-' + targetTab).classList.remove('hidden');
+
+            // Apply selected styling structure signature class to active button
+            document.getElementById('tab-' + targetTab).className = "tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 bg-brand-light text-brand relative";
+            
+            // Scroll safely to absolute peak top window coordinate
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
