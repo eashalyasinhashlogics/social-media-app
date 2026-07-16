@@ -4,6 +4,7 @@ from app.models.oauth import OAuthCredentials
 from app.models.user_profile import UserProfile
 from app.models.refresh_token import RefreshToken
 from app.models.user_session import UserSession
-from app.db.base import Base 
-__all__ = ["Base", "User", "EmailOTP", "OTPVerification", "OAuthCredentials", "UserProfile", "RefreshToken", "UserSession"]
-
+from app.models.post import Post
+from app.models.media import Media
+from app.db.base import Base
+__all__ = ["Base", "User", "OTPVerification", "OAuthCredentials", "UserProfile", "RefreshToken", "UserSession", "Post", "Media"]

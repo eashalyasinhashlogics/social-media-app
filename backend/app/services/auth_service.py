@@ -1,5 +1,5 @@
 ﻿from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 from app.models.user import User
 from app.models.refresh_token import RefreshToken
 from app.models.user_session import UserSession
@@ -31,7 +31,7 @@ class AuthService:
         token_record = RefreshToken(
             user_id=user.id,
             token_hash=hash_password(refresh_token),
-            expires_at=datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
             revoked=False
         )
         db.add(token_record)

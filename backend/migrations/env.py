@@ -13,6 +13,8 @@ from app.models.oauth import OAuthCredentials
 from app.models.user_profile import UserProfile
 from app.models.refresh_token import RefreshToken
 from app.models.user_session import UserSession
+from app.models.post import Post
+from app.models.media import Media
 from app.config import DATABASE_URL
 
 config = context.config
