@@ -78,76 +78,24 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <div style={{
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-      backgroundColor: '#f8fafc',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      padding: '20px'
-    }}>
+    <div className="font-[-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto,Helvetica,Arial,sans-serif] bg-[#f8fafc] flex flex-col items-center justify-center min-h-screen p-[20px]">
+      
       {/* Brand Header - Outside Card */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        marginBottom: '40px'
-      }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-          color: '#ffffff',
-          fontSize: '22px',
-          fontWeight: '700',
-          width: '44px',
-          height: '44px',
-          borderRadius: '14px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 14px rgba(79, 70, 229, 0.4)'
-        }}>
+      <div className="flex items-center gap-[12px] mb-[40px]">
+        <div className="bg-[linear-gradient(135deg,#6366f1,#4f46e5)] text-white text-[22px] font-[700] w-[44px] h-[44px] rounded-[14px] flex items-center justify-center shadow-[0_4px_14px_rgba(79,70,229,0.4)]">
           F
         </div>
-        <span style={{
-          fontSize: '26px',
-          fontWeight: '800',
-          color: '#0f172a',
-          letterSpacing: '-0.5px'
-        }}>FOMO</span>
+        <span className="text-[26px] font-[800] text-[#0f172a] tracking-[-0.5px]">FOMO</span>
       </div>
 
       {/* Verification Card */}
-      <div style={{
-        backgroundColor: '#ffffff',
-        borderRadius: '20px',
-        width: '100%',
-        maxWidth: '490px',
-        padding: '40px',
-        boxShadow: '0 4px 25px rgba(0, 0, 0, 0.03)',
-        position: 'relative'
-      }}>
+      <div className="bg-white rounded-[20px] w-full max-w-[490px] p-[40px] shadow-[0_4px_25px_rgba(0,0,0,0.03)] relative">
         
         {/* Back Button */}
-        <Link href="/login" style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '8px',
-          color: '#64748b',
-          textDecoration: 'none',
-          fontSize: '15px',
-          fontWeight: '500',
-          marginBottom: '28px',
-          cursor: 'pointer',
-          transition: 'color 0.2s ease'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = '#475569'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = '#64748b'
-        }}>
+        <Link 
+          href="/login" 
+          className="inline-flex items-center gap-[8px] text-[#64748b] hover:text-[#475569] no-underline text-[15px] font-[500] mb-[28px] cursor-pointer transition-colors duration-[0.2s] ease"
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
@@ -156,98 +104,40 @@ export default function VerifyEmailPage() {
         </Link>
 
         {/* Icon Container */}
-        <div style={{
-          width: '60px',
-          height: '60px',
-          backgroundColor: '#e0e7ff',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '24px'
-        }}>
-          <svg style={{
-            width: '26px',
-            height: '26px',
-            color: '#4f46e5'
-          }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <div className="w-[60px] h-[60px] bg-[#e0e7ff] rounded-full flex items-center justify-center mb-[24px]">
+          <svg className="w-[26px] h-[26px] text-[#4f46e5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
             <polyline points="22,6 12,13 2,6"></polyline>
           </svg>
         </div>
 
         {/* Heading */}
-        <h2 style={{
-          fontSize: '26px',
-          fontWeight: '700',
-          color: '#0f172a',
-          marginBottom: '10px',
-          letterSpacing: '-0.3px'
-        }}>Verify your email</h2>
+        <h2 className="text-[26px] font-[700] text-[#0f172a] mb-[10px] tracking-[-0.3px]">Verify your email</h2>
         
         {/* Instruction Text */}
-        <p style={{
-          fontSize: '15px',
-          color: '#64748b',
-          marginBottom: '32px',
-          fontWeight: '400'
-        }}>We sent a 6-digit code to <strong style={{
-          color: '#0f172a',
-          fontWeight: '600'
-        }}>{email}</strong></p>
+        <p className="text-[15px] text-[#64748b] mb-[32px] font-[400]">
+          We sent a 6-digit code to <strong className="text-[#0f172a] font-[600]">{email}</strong>
+        </p>
 
         {/* Error Alert */}
         {error && (
-          <div style={{
-            marginBottom: '24px',
-            padding: '12px 16px',
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fee2e2',
-            borderRadius: '12px',
-            color: '#991b1b',
-            fontSize: '14px'
-          }}>
+          <div className="mb-[24px] py-[12px] px-[16px] bg-[#fef2f2] border border-[#fee2e2] rounded-[12px] text-[#991b1b] text-[14px]">
             {error}
           </div>
         )}
 
         {/* Success Alert */}
         {success && (
-          <div style={{
-            marginBottom: '24px',
-            padding: '12px 16px',
-            backgroundColor: '#f0fdf4',
-            border: '1px solid #dcfce7',
-            borderRadius: '12px',
-            color: '#15803d',
-            fontSize: '14px'
-          }}>
+          <div className="mb-[24px] py-[12px] px-[16px] bg-[#f0fdf4] border border-[#dcfce7] rounded-[12px] text-[#15803d] text-[14px]">
             {success}
           </div>
         )}
 
         {/* Code Input Area */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '16px',
-          marginBottom: '36px'
-        }} onPaste={handlePaste}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            width: '100%',
-            gap: '10px'
-          }}>
+        <div className="flex flex-col items-center gap-[16px] mb-[36px]" onPaste={handlePaste}>
+          <div className="flex justify-between w-full gap-[10px]">
             {otp.map((digit, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '12px',
-                flex: 1
-              }}>
+              <div key={i} className="flex flex-col items-center gap-[12px] flex-1">
                 <input
                   ref={(el) => {
                     refs.current[i] = el
@@ -259,40 +149,13 @@ export default function VerifyEmailPage() {
                   onChange={(e) => handleChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
                   autoFocus={i === 0}
-                  style={{
-                    width: '100%',
-                    height: '64px',
-                    border: digit || document.activeElement === refs.current[i] ? '2px solid #4f46e5' : '1.5px solid #e2e8f0',
-                    borderRadius: '14px',
-                    fontSize: '24px',
-                    fontWeight: '600',
-                    textAlign: 'center',
-                    color: '#0f172a',
-                    outline: 'none',
-                    backgroundColor: 'transparent',
-                    transition: 'all 0.2s ease',
-                    cursor: 'text',
-                    boxShadow: (digit || document.activeElement === refs.current[i]) ? '0 0 0 0.5px #4f46e5' : 'none'
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#4f46e5'
-                    e.currentTarget.style.borderWidth = '2px'
-                    e.currentTarget.style.boxShadow = '0 0 0 0.5px #4f46e5'
-                  }}
-                  onBlur={(e) => {
-                    if (!e.currentTarget.value) {
-                      e.currentTarget.style.borderColor = '#e2e8f0'
-                      e.currentTarget.style.borderWidth = '1.5px'
-                      e.currentTarget.style.boxShadow = 'none'
-                    }
-                  }}
+                  className={`w-full h-[64px] rounded-[14px] text-[24px] font-[600] text-center text-[#0f172a] outline-none bg-transparent transition-all duration-[0.2s] ease cursor-text focus:border-[2px] focus:border-[#4f46e5] focus:shadow-[0_0_0_0.5px_#4f46e5] ${
+                    digit 
+                      ? 'border-[2px] border-[#4f46e5] shadow-[0_0_0_0.5px_#4f46e5]' 
+                      : 'border-[1.5px] border-[#e2e8f0]'
+                  }`}
                 />
-                <div style={{
-                  width: '24px',
-                  height: '2px',
-                  backgroundColor: '#cbd5e1',
-                  borderRadius: '2px'
-                }}></div>
+                <div className="w-[24px] h-[2px] bg-[#cbd5e1] rounded-[2px]"></div>
               </div>
             ))}
           </div>
@@ -302,48 +165,15 @@ export default function VerifyEmailPage() {
         <button
           onClick={handleVerify}
           disabled={isLoading || otp.join('').length !== 6}
-          style={{
-            width: '100%',
-            padding: '12px',
-            backgroundColor: '#4f46e5',
-            color: 'white',
-            fontSize: '15px',
-            fontWeight: '600',
-            border: 'none',
-            borderRadius: '12px',
-            cursor: isLoading || otp.join('').length !== 6 ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
-            opacity: isLoading || otp.join('').length !== 6 ? 0.6 : 1,
-            marginBottom: '24px'
-          }}
-          onMouseEnter={(e) => {
-            if (!isLoading && otp.join('').length === 6) {
-              e.currentTarget.style.backgroundColor = '#4338ca'
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(79, 70, 229, 0.3)'
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isLoading && otp.join('').length === 6) {
-              e.currentTarget.style.backgroundColor = '#4f46e5'
-              e.currentTarget.style.boxShadow = 'none'
-            }
-          }}
+          className={`w-full p-[12px] bg-[#4f46e5] text-white text-[15px] font-[600] border-none rounded-[12px] transition-all duration-[0.2s] ease mb-[24px] ${
+            isLoading || otp.join('').length !== 6
+              ? 'cursor-not-allowed opacity-[0.6]'
+              : 'cursor-pointer hover:bg-[#4338ca] hover:shadow-[0_4px_12px_rgba(79,70,229,0.3)]'
+          }`}
         >
           {isLoading ? (
-            <span style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
-            }}>
-              <span style={{
-                width: '16px',
-                height: '16px',
-                border: '2px solid white',
-                borderTop: '2px solid transparent',
-                borderRadius: '50%',
-                animation: 'spin 0.6s linear infinite'
-              }}></span>
+            <span className="flex items-center justify-center gap-[8px]">
+              <span className="w-[16px] h-[16px] border-[2px] border-white border-t-transparent rounded-full animate-[spin_0.6s_linear_infinite]"></span>
               Verifying...
             </span>
           ) : (
@@ -352,50 +182,24 @@ export default function VerifyEmailPage() {
         </button>
 
         {/* Footer Text */}
-        <p style={{
-          fontSize: '14px',
-          color: '#64748b',
-          textAlign: 'center',
-          marginBottom: '8px'
-        }}>
-          Didn't receive the code? {countdown > 0 ? (
-            <span style={{ fontWeight: '500', color: '#94a3b8' }}>Resend in {countdown}s</span>
+        <p className="text-[14px] text-[#64748b] text-center mb-[8px]">
+          Didn't receive the code?{' '}
+          {countdown > 0 ? (
+            <span className="font-[500] text-[#94a3b8]">Resend in {countdown}s</span>
           ) : (
             <button
               onClick={handleResend}
               disabled={isResending}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#4f46e5',
-                fontWeight: '500',
-                cursor: isResending ? 'not-allowed' : 'pointer',
-                textDecoration: 'none',
-                transition: 'color 0.2s ease',
-                fontSize: 'inherit'
-              }}
-              onMouseEnter={(e) => {
-                if (!isResending) {
-                  e.currentTarget.style.color = '#4338ca'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isResending) {
-                  e.currentTarget.style.color = '#4f46e5'
-                }
-              }}
+              className={`bg-transparent border-none text-[#4f46e5] font-[500] no-underline transition-colors duration-[0.2s] ease text-inherit ${
+                isResending ? 'cursor-not-allowed' : 'cursor-pointer hover:text-[#4338ca]'
+              }`}
             >
               {isResending ? 'Sending...' : 'Resend code'}
             </button>
           )}
         </p>
         
-        <p style={{
-          fontSize: '12px',
-          color: '#94a3b8',
-          textAlign: 'center',
-          fontWeight: '400'
-        }}>Code expires in 15 minutes</p>
+        <p className="text-[12px] text-[#94a3b8] text-center font-[400]">Code expires in 15 minutes</p>
 
         <style>{`
           @keyframes spin {

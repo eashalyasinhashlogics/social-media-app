@@ -2,9 +2,9 @@
 
 export function FomoLogo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   const sizes = { 
-    sm: 'h-8', 
-    md: 'h-12', 
-    lg: 'h-16' 
+    sm: 'h-[32px]', 
+    md: 'h-[48px]', 
+    lg: 'h-[64px]' 
   }
 
   return (
@@ -12,10 +12,10 @@ export function FomoLogo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
       <Image 
         src="/namelogo.png" 
         alt="FOMO Logo"
-        width={200} // Provide a base aspect ratio width
-        height={50}  // Provide a base aspect ratio height
+        width={200} 
+        height={50}  
         className={`${sizes[size]} w-auto object-contain`}
-        priority // Ensures the logo loads instantly as a critical LCP element
+        priority 
       />
     </div>
   )

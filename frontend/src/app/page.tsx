@@ -50,120 +50,37 @@ export default function SplashPage() {
   }, [router])
 
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        background: 'linear-gradient(135deg, #6c3bfb 0%, #583fe1 45%, #00b0df 100%)',
-        overflow: 'hidden',
-        fontFamily: "'Inter', sans-serif",
-        margin: 0,
-        padding: 0,
-        boxSizing: 'border-box',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          textAlign: 'center',
-          color: '#ffffff',
-        }}
-      >
+    <div className="w-full h-screen flex justify-center items-center bg-[linear-gradient(135deg,#6c3bfb_0%,#583fe1_45%,#00b0df_100%)] overflow-hidden font-['Inter',sans-serif] m-0 p-0 box-border">
+      <div className="flex flex-col items-center text-center text-white">
+        
         {/* Logo Box - Glassmorphism */}
-        <div
-          style={{
-            width: '110px',
-            height: '110px',
-            background: 'rgba(255, 255, 255, 0.15)',
-            border: '1px solid rgba(255, 255, 255, 0.25)',
-            borderRadius: '28px',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.1)',
-            backdropFilter: 'blur(4px)',
-            WebkitBackdropFilter: 'blur(4px)',
-            marginBottom: '24px',
-          }}
-        >
-          <span
-            style={{
-              fontSize: '3.2rem',
-              fontWeight: 800,
-              color: '#ffffff',
-            }}
-          >
+        <div className="w-[110px] h-[110px] bg-[rgba(255,255,255,0.15)] border border-[rgba(255,255,255,0.25)] rounded-[28px] flex justify-center items-center shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] backdrop-blur-[4px] mb-[24px]">
+          <span className="text-[3.2rem] font-[800] text-white">
             F
           </span>
         </div>
 
         {/* App Title */}
-        <h1
-          style={{
-            fontSize: '3.2rem',
-            fontWeight: 800,
-            letterSpacing: '0.5px',
-            lineHeight: 1,
-            marginBottom: '8px',
-            margin: 0,
-          }}
-        >
+        <h1 className="text-[3.2rem] font-[800] tracking-[0.5px] leading-[1] m-0 mb-[8px]">
           FOMO
         </h1>
 
         {/* App Tagline */}
-        <p
-          style={{
-            fontSize: '1.15rem',
-            fontWeight: 600,
-            color: 'rgba(255, 255, 255, 0.9)',
-            letterSpacing: '0.2px',
-            marginBottom: '48px',
-            margin: 0,
-            marginBottom: '48px',
-          }}
-        >
+        <p className="text-[1.15rem] font-[600] text-[rgba(255,255,255,0.9)] tracking-[0.2px] m-0 mb-[48px]">
           Authentic Connections
         </p>
 
         {/* Progress Container */}
-        <div
-          style={{
-            width: '220px',
-            height: '6px',
-            background: 'rgba(255, 255, 255, 0.25)',
-            borderRadius: '100px',
-            overflow: 'hidden',
-            marginBottom: '16px',
-          }}
-        >
+        <div className="w-[220px] h-[6px] bg-[rgba(255,255,255,0.25)] rounded-[100px] overflow-hidden mb-[16px]">
           {/* Progress Bar */}
           <div
-            style={{
-              height: '100%',
-              background: '#ffffff',
-              borderRadius: '100px',
-              width: `${progress}%`,
-              transition: 'width 0.01s linear',
-            }}
+            className="h-full bg-white rounded-[100px] transition-[width] duration-[10ms] ease-linear"
+            style={{ width: `${progress}%` }}
           />
         </div>
 
         {/* Status Text */}
-        <p
-          style={{
-            fontSize: '0.85rem',
-            fontWeight: 400,
-            color: 'rgba(255, 255, 255, 0.55)',
-            letterSpacing: '0.1px',
-            margin: 0,
-          }}
-        >
+        <p className="text-[0.85rem] font-[400] text-[rgba(255,255,255,0.55)] tracking-[0.1px] m-0">
           Building your social space...
         </p>
       </div>

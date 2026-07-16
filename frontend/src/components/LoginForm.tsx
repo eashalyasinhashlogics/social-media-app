@@ -22,33 +22,17 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleLogin} style={{ margin: 0 }}>
+    <form onSubmit={handleLogin} className="m-0">
       {/* Error Alert */}
       {error && (
-        <div style={{
-          padding: '12px 14px',
-          background: '#fef2f2',
-          border: '1px solid #fee2e2',
-          borderRadius: '8px',
-          color: '#991b1b',
-          fontSize: '14px',
-          fontWeight: '500',
-          marginBottom: '20px',
-          animation: 'fadeIn 0.2s ease-in'
-        }}>
+        <div className="py-[12px] px-[14px] bg-[#fef2f2] border border-[#fee2e2] rounded-[8px] text-[#991b1b] text-[14px] font-[500] mb-[20px] animate-[fadeIn_0.2s_ease-in]">
           {error}
         </div>
       )}
 
       {/* Email Input */}
-      <div style={{ marginBottom: '20px' }}>
-        <label htmlFor="email" style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '600',
-          color: '#1a1a1a',
-          marginBottom: '8px'
-        }}>
+      <div className="mb-[20px]">
+        <label htmlFor="email" className="block text-[14px] font-[600] text-[#1a1a1a] mb-[8px]">
           Email address
         </label>
         <input
@@ -59,67 +43,24 @@ export function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
-          style={{
-            width: '100%',
-            padding: '12px 14px',
-            border: '1px solid #e5e7eb',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontFamily: 'inherit',
-            transition: 'all 0.2s ease',
-            boxSizing: 'border-box'
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = '#6366f1'
-            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = '#e5e7eb'
-            e.currentTarget.style.boxShadow = 'none'
-          }}
-          onMouseEnter={(e) => {
-            if (document.activeElement !== e.currentTarget) {
-              e.currentTarget.style.borderColor = '#d1d5db'
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (document.activeElement !== e.currentTarget) {
-              e.currentTarget.style.borderColor = '#e5e7eb'
-            }
-          }}
+          className="w-full py-[12px] px-[14px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-inherit transition-all duration-[0.2s] ease box-border outline-none hover:border-[#d1d5db] focus:border-[#6366f1] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1)]"
         />
       </div>
 
       {/* Password Input */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '8px'
-        }}>
-          <label htmlFor="password" style={{
-            display: 'block',
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#1a1a1a'
-          }}>
+      <div className="mb-[24px]">
+        <div className="flex justify-between items-center mb-[8px]">
+          <label htmlFor="password" className="block text-[14px] font-[600] text-[#1a1a1a]">
             Password
           </label>
           <Link 
             href="/forgot-password" 
-            style={{
-              fontSize: '13px',
-              color: '#6366f1',
-              textDecoration: 'none',
-              cursor: 'pointer',
-              transition: 'color 0.2s ease'
-            }}
+            className="text-[13px] text-[#6366f1] no-underline cursor-pointer transition-colors duration-[0.2s] ease hover:text-[#4f46e5]"
           >
             Forgot password?
           </Link>
         </div>
-        <div style={{ position: 'relative' }}>
+        <div className="relative">
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
@@ -128,54 +69,12 @@ export function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
-            style={{
-              width: '100%',
-              padding: '12px 14px',
-              paddingRight: '42px',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontFamily: 'inherit',
-              transition: 'all 0.2s ease',
-              boxSizing: 'border-box'
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#6366f1'
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.1)'
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = '#e5e7eb'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
-            onMouseEnter={(e) => {
-              if (document.activeElement !== e.currentTarget) {
-                e.currentTarget.style.borderColor = '#d1d5db'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (document.activeElement !== e.currentTarget) {
-                e.currentTarget.style.borderColor = '#e5e7eb'
-              }
-            }}
+            className="w-full py-[12px] px-[14px] pr-[42px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-inherit transition-all duration-[0.2s] ease box-border outline-none hover:border-[#d1d5db] focus:border-[#6366f1] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1)]"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            style={{
-              position: 'absolute',
-              right: '14px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              cursor: 'pointer',
-              color: '#9ca3af',
-              fontSize: '18px',
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
+            className="absolute right-[14px] top-[50%] translate-y-[-50%] cursor-pointer text-[#9ca3af] text-[18px] bg-transparent border-none p-0 flex items-center justify-center outline-none select-none"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
             {showPassword ? '🙈' : '👁'}
@@ -187,55 +86,15 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isLoading}
-        style={{
-          width: '100%',
-          padding: '12px',
-          background: isLoading 
-            ? 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)' 
-            : 'linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          fontSize: '15px',
-          fontWeight: '600',
-          cursor: isLoading ? 'not-allowed' : 'pointer',
-          transition: 'all 0.2s ease',
-          marginBottom: '16px',
-          opacity: isLoading ? 0.6 : 1
-        }}
-        onMouseEnter={(e) => {
-          if (!isLoading) {
-            e.currentTarget.style.transform = 'translateY(-2px)'
-            e.currentTarget.style.boxShadow = '0 8px 16px rgba(99, 102, 241, 0.4)'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isLoading) {
-            e.currentTarget.style.transform = 'translateY(0)'
-            e.currentTarget.style.boxShadow = 'none'
-          }
-        }}
-        onMouseDown={(e) => {
-          if (!isLoading) {
-            e.currentTarget.style.transform = 'translateY(0)'
-          }
-        }}
+        className={`w-full p-[12px] bg-[linear-gradient(135deg,#6366f1_0%,#7c3aed_100%)] text-white border-none rounded-[8px] text-[15px] font-[600] transition-all duration-[0.2s] ease mb-[16px] ${
+          isLoading 
+            ? 'cursor-not-allowed opacity-[0.6]' 
+            : 'cursor-pointer hover:translate-y-[-2px] hover:shadow-[0_8px_16px_rgba(99,102,241,0.4)] active:translate-y-0'
+        }`}
       >
         {isLoading ? (
-          <span style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px'
-          }}>
-            <span style={{
-              width: '16px',
-              height: '16px',
-              border: '2px solid white',
-              borderTop: '2px solid transparent',
-              borderRadius: '50%',
-              animation: 'spin 0.6s linear infinite'
-            }}></span>
+          <span className="flex items-center justify-center gap-[8px]">
+            <span className="w-[16px] h-[16px] border-[2px] border-white border-t-transparent rounded-full animate-[spin_0.6s_linear_infinite]"></span>
             Logging in...
           </span>
         ) : (

@@ -64,128 +64,47 @@ export function RegisterForm() {
   }
 
   return (
-    <form onSubmit={handleRegister} style={{ margin: 0 }}>
+    <form onSubmit={handleRegister} className="m-0">
       {/* Error Alert */}
       {error && (
-        <div style={{
-          marginBottom: '16px',
-          padding: '12px 14px',
-          background: '#fef2f2',
-          border: '1px solid #fee2e2',
-          borderRadius: '8px',
-          color: '#991b1b',
-          fontSize: '14px',
-          fontWeight: '500',
-          animation: 'fadeIn 0.2s ease-in'
-        }}>
+        <div className="py-[12px] px-[14px] bg-[#fef2f2] border border-[#fee2e2] rounded-[8px] text-[#991b1b] text-[14px] font-[500] mb-[16px] animate-[fadeIn_0.2s_ease-in]">
           {error}
         </div>
       )}
 
       {/* Success Alert */}
       {success && (
-        <div style={{
-          marginBottom: '16px',
-          padding: '12px 14px',
-          background: '#f0fdf4',
-          border: '1px solid #dcfce7',
-          borderRadius: '8px',
-          color: '#15803d',
-          fontSize: '14px',
-          fontWeight: '500',
-          animation: 'fadeIn 0.2s ease-in'
-        }}>
+        <div className="py-[12px] px-[14px] bg-[#f0fdf4] border border-[#dcfce7] rounded-[8px] text-[#15803d] text-[14px] font-[500] mb-[16px] animate-[fadeIn_0.2s_ease-in]">
           {success}
         </div>
       )}
 
       {/* OAuth Buttons */}
-      <div style={{
-        display: 'flex',
-        gap: '16px',
-        marginBottom: '24px'
-      }}>
+      <div className="flex gap-[16px] mb-[24px]">
         <button
           type="button"
-          style={{
-            flex: 1,
-            padding: '8px 16px',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            background: 'white',
-            color: '#1e293b',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#f8fafc'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'white'
-          }}
+          className="flex-1 py-[10px] px-[16px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-[600] text-[#1a1a1a] bg-white cursor-pointer transition-all duration-[0.2s] ease hover:bg-[#f9fafb] hover:border-[#d1d5db]"
         >
           Google
         </button>
         <button
           type="button"
-          style={{
-            flex: 1,
-            padding: '8px 16px',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            background: 'white',
-            color: '#1e293b',
-            transition: 'all 0.2s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#f8fafc'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'white'
-          }}
+          className="flex-1 py-[10px] px-[16px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-[600] text-[#1a1a1a] bg-white cursor-pointer transition-all duration-[0.2s] ease hover:bg-[#f9fafb] hover:border-[#d1d5db]"
         >
           GitHub
         </button>
       </div>
 
       {/* Divider */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        marginBottom: '24px',
-        gap: '16px'
-      }}>
-        <div style={{
-          flex: 1,
-          height: '1px',
-          background: '#e2e8f0'
-        }}></div>
-        <span style={{
-          fontSize: '12px',
-          fontWeight: '500',
-          color: '#94a3b8'
-        }}>or with email</span>
-        <div style={{
-          flex: 1,
-          height: '1px',
-          background: '#e2e8f0'
-        }}></div>
+      <div className="flex items-center mb-[24px] gap-[16px]">
+        <div className="flex-1 h-[1px] bg-[#e5e7eb]"></div>
+        <span className="text-[12px] font-[500] text-[#9ca3af]">or with email</span>
+        <div className="flex-1 h-[1px] bg-[#e5e7eb]"></div>
       </div>
 
       {/* Full Name Input */}
-      <div style={{ marginBottom: '16px' }}>
-        <label htmlFor="fullName" style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '700',
-          color: '#1e293b',
-          marginBottom: '6px'
-        }}>
+      <div className="mb-[16px]">
+        <label htmlFor="fullName" className="block text-[14px] font-[600] text-[#1a1a1a] mb-[8px]">
           Full name
         </label>
         <input
@@ -196,112 +115,33 @@ export function RegisterForm() {
           onChange={(e) => setFullName(e.target.value)}
           required
           autoComplete="name"
-          style={{
-            width: '100%',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            padding: '10px 16px',
-            fontSize: '14px',
-            fontFamily: 'inherit',
-            transition: 'all 0.2s ease',
-            boxSizing: 'border-box',
-            color: '#1e293b'
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = '#6366f1'
-            e.currentTarget.style.boxShadow = '0 0 0 2px rgba(99, 102, 241, 0.1)'
-            e.currentTarget.style.outline = 'none'
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = '#e2e8f0'
-            e.currentTarget.style.boxShadow = 'none'
-          }}
+          className="w-full py-[12px] px-[14px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-inherit transition-all duration-[0.2s] ease box-border outline-none hover:border-[#d1d5db] focus:border-[#6366f1] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1)] text-[#1a1a1a]"
         />
       </div>
 
       {/* Email Input */}
-      <div style={{ marginBottom: '16px' }}>
-        <label htmlFor="email" style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '700',
-          color: '#1e293b',
-          marginBottom: '6px'
-        }}>
+      <div className="mb-[16px]">
+        <label htmlFor="email" className="block text-[14px] font-[600] text-[#1a1a1a] mb-[8px]">
           Email address
         </label>
-        <div style={{ position: 'relative' }}>
-          <svg style={{
-            position: 'absolute',
-            left: '14px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: '16px',
-            height: '16px',
-            color: '#94a3b8',
-            pointerEvents: 'none'
-          }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          <input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            autoComplete="email"
-            style={{
-              width: '100%',
-              border: '1px solid #e2e8f0',
-              borderRadius: '12px',
-              paddingLeft: '40px',
-              paddingRight: '16px',
-              paddingTop: '10px',
-              paddingBottom: '10px',
-              fontSize: '14px',
-              fontFamily: 'inherit',
-              transition: 'all 0.2s ease',
-              boxSizing: 'border-box',
-              color: '#1e293b'
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#6366f1'
-              e.currentTarget.style.boxShadow = '0 0 0 2px rgba(99, 102, 241, 0.1)'
-              e.currentTarget.style.outline = 'none'
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = '#e2e8f0'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
-          />
-        </div>
+        <input
+          id="email"
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="email"
+          className="w-full py-[12px] px-[14px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-inherit transition-all duration-[0.2s] ease box-border outline-none hover:border-[#d1d5db] focus:border-[#6366f1] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1)] text-[#1a1a1a]"
+        />
       </div>
 
       {/* Password Input */}
-      <div style={{ marginBottom: '16px' }}>
-        <label htmlFor="password" style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '700',
-          color: '#1e293b',
-          marginBottom: '6px'
-        }}>
+      <div className="mb-[16px]">
+        <label htmlFor="password" className="block text-[14px] font-[600] text-[#1a1a1a] mb-[8px]">
           Password
         </label>
-        <div style={{ position: 'relative' }}>
-          <svg style={{
-            position: 'absolute',
-            left: '14px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: '16px',
-            height: '16px',
-            color: '#94a3b8',
-            pointerEvents: 'none'
-          }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
+        <div className="relative">
           <input
             id="password"
             type={showPassword ? 'text' : 'password'}
@@ -310,153 +150,59 @@ export function RegisterForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="new-password"
-            style={{
-              width: '100%',
-              border: '1px solid #e2e8f0',
-              borderRadius: '12px',
-              paddingLeft: '40px',
-              paddingRight: '40px',
-              paddingTop: '10px',
-              paddingBottom: '10px',
-              fontSize: '14px',
-              fontFamily: 'inherit',
-              transition: 'all 0.2s ease',
-              boxSizing: 'border-box',
-              color: '#1e293b'
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#6366f1'
-              e.currentTarget.style.boxShadow = '0 0 0 2px rgba(99, 102, 241, 0.1)'
-              e.currentTarget.style.outline = 'none'
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = '#e2e8f0'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
+            className="w-full py-[12px] px-[14px] pr-[42px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-inherit transition-all duration-[0.2s] ease box-border outline-none hover:border-[#d1d5db] focus:border-[#6366f1] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1)] text-[#1a1a1a]"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            style={{
-              position: 'absolute',
-              right: '14px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              cursor: 'pointer',
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#94a3b8',
-              transition: 'color 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#475569'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = '#94a3b8'
-            }}
+            className="absolute right-[14px] top-[50%] translate-y-[-50%] cursor-pointer text-[#9ca3af] text-[18px] bg-transparent border-none p-0 flex items-center justify-center outline-none select-none hover:text-[#475569]"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
           >
-            <svg style={{
-              width: '16px',
-              height: '16px'
-            }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
+            {showPassword ? '🙈' : '👁'}
           </button>
         </div>
       </div>
 
       {/* Confirm Password Input */}
-      <div style={{ marginBottom: '16px' }}>
-        <label htmlFor="confirmPassword" style={{
-          display: 'block',
-          fontSize: '14px',
-          fontWeight: '700',
-          color: '#1e293b',
-          marginBottom: '6px'
-        }}>
+      <div className="mb-[24px]">
+        <label htmlFor="confirmPassword" className="block text-[14px] font-[600] text-[#1a1a1a] mb-[8px]">
           Confirm password
         </label>
-        <input
-          id="confirmPassword"
-          type={showConfirmPassword ? 'text' : 'password'}
-          placeholder="Repeat password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-          autoComplete="new-password"
-          style={{
-            width: '100%',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            padding: '10px 16px',
-            fontSize: '14px',
-            fontFamily: 'inherit',
-            transition: 'all 0.2s ease',
-            boxSizing: 'border-box',
-            color: '#1e293b'
-          }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = '#6366f1'
-            e.currentTarget.style.boxShadow = '0 0 0 2px rgba(99, 102, 241, 0.1)'
-            e.currentTarget.style.outline = 'none'
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = '#e2e8f0'
-            e.currentTarget.style.boxShadow = 'none'
-          }}
-        />
+        <div className="relative">
+          <input
+            id="confirmPassword"
+            type={showConfirmPassword ? 'text' : 'password'}
+            placeholder="Repeat password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            className="w-full py-[12px] px-[14px] pr-[42px] border border-[#e5e7eb] rounded-[8px] text-[14px] font-inherit transition-all duration-[0.2s] ease box-border outline-none hover:border-[#d1d5db] focus:border-[#6366f1] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1)] text-[#1a1a1a]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            className="absolute right-[14px] top-[50%] translate-y-[-50%] cursor-pointer text-[#9ca3af] text-[18px] bg-transparent border-none p-0 flex items-center justify-center outline-none select-none hover:text-[#475569]"
+            aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}
+          >
+            {showConfirmPassword ? '🙈' : '👁'}
+          </button>
+        </div>
       </div>
 
       {/* Register Button */}
       <button
         type="submit"
         disabled={isLoading}
-        style={{
-          width: '100%',
-          background: '#a5b4fc',
-          color: 'white',
-          borderRadius: '12px',
-          padding: '12px',
-          fontWeight: '600',
-          fontSize: '15px',
-          border: 'none',
-          marginTop: '16px',
-          cursor: isLoading ? 'not-allowed' : 'pointer',
-          transition: 'all 0.2s ease',
-          opacity: isLoading ? 0.7 : 1,
-          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
-        }}
-        onMouseEnter={(e) => {
-          if (!isLoading) {
-            e.currentTarget.style.background = '#c7d2fe'
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isLoading) {
-            e.currentTarget.style.background = '#a5b4fc'
-          }
-        }}
+        className={`w-full p-[12px] bg-[linear-gradient(135deg,#6366f1_0%,#7c3aed_100%)] text-white border-none rounded-[8px] text-[15px] font-[600] transition-all duration-[0.2s] ease mt-[8px] mb-[16px] ${
+          isLoading 
+            ? 'cursor-not-allowed opacity-[0.6]' 
+            : 'cursor-pointer hover:translate-y-[-2px] hover:shadow-[0_8px_16px_rgba(99,102,241,0.4)] active:translate-y-0'
+        }`}
       >
         {isLoading ? (
-          <span style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px'
-          }}>
-            <span style={{
-              width: '16px',
-              height: '16px',
-              border: '2px solid white',
-              borderTop: '2px solid transparent',
-              borderRadius: '50%',
-              animation: 'spin 0.6s linear infinite'
-            }}></span>
+          <span className="flex items-center justify-center gap-[8px]">
+            <span className="w-[16px] h-[16px] border-[2px] border-white border-t-transparent rounded-full animate-[spin_0.6s_linear_infinite]"></span>
             Creating account...
           </span>
         ) : (
