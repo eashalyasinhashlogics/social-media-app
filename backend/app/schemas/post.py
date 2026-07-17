@@ -23,6 +23,7 @@ class ShareCreate(BaseModel):
 class PostResponse(BaseModel):
     id: uuid.UUID
     author_id: uuid.UUID
+    author_username: Optional[str] = None
     content: str
     status: str
     like_count: int
@@ -33,6 +34,9 @@ class PostResponse(BaseModel):
     original_post_id: Optional[uuid.UUID] = None
     original_author_username: Optional[str] = None
     original_content: Optional[str] = None
+    liked_by_me: bool = False
+    media_url: Optional[str] = None
+    media_type: Optional[str] = None
 
     class Config:
         from_attributes = True

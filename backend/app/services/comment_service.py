@@ -3,6 +3,7 @@ from datetime import datetime
 import uuid
 
 from app.models.comment import Comment
+from app.models.user import User
 from app.services.post_service import PostService
 from app.core.exceptions import CommentNotFoundException, NotCommentOwnerOrPostOwnerException
 from app.schemas.comment import CommentCreate
@@ -11,7 +12,22 @@ from app.schemas.comment import CommentCreate
 class CommentService:
 
     @staticmethod
-    def create_comment(db: Session, post_id: uuid.UUID, user_id: uuid.UUID, comment_create: CommentCreate) -> Comment:
+    def _to_response_dict(db: Session, comment: Comment) -> dict:
+        user = db.query(User).filter(User.id == comment.user_id).first()
+        return {
+            "id": comment.id,
+            "post_id": comment.post_id,
+            "user_id": comment.user_id,
+            "username": user.username if user else None,
+            "parent_comment_id": comment.parent_comment_id,
+            "content": comment.content,
+            "like_count": comment.like_count,
+            "created_at": comment.created_at,
+            "updated_at": comment.updated_at,
+        }
+
+    @staticmethod
+    def create_comment(db: Session, post_id: uuid.UUID, user_id: uuid.UUID, comment_create: CommentCreate) -> dict:
         post = PostService.get_post_or_404(db, post_id)
 
         comment = Comment(
@@ -27,17 +43,18 @@ class CommentService:
 
         db.commit()
         db.refresh(comment)
-        return comment
+        return CommentService._to_response_dict(db, comment)
 
     @staticmethod
-    def list_comments(db: Session, post_id: uuid.UUID):
+    def list_comments(db: Session, post_id: uuid.UUID) -> list:
         PostService.get_post_or_404(db, post_id)
-        return (
+        comments = (
             db.query(Comment)
             .filter(Comment.post_id == post_id, Comment.deleted_at.is_(None))
             .order_by(Comment.created_at.asc())
             .all()
         )
+        return [CommentService._to_response_dict(db, c) for c in comments]
 
     @staticmethod
     def delete_comment(db: Session, comment_id: uuid.UUID, user_id: uuid.UUID) -> None:

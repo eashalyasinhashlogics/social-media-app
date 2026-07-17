@@ -31,3 +31,5 @@ class Post(Base):
 
     def __repr__(self):
         return f"<Post(id={self.id}, author_id={self.author_id}, status={self.status})>"
+
+ 

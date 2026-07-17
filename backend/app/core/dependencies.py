@@ -54,6 +54,25 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
 
+async def get_current_user_optional(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Same as get_current_user but returns None instead of raising 401.
+    Used on endpoints that work for anonymous visitors but personalize
+    the response (e.g. liked_by_me) when a valid session is present."""
+    token = _extract_token(request, credentials)
+    if not token:
+        return None
+    try:
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+    except JWTError:
+        return None
+    return db.query(User).filter(User.id == user_id).first()
 
 async def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
     from app.db.enums import UserRole
