@@ -27,3 +27,29 @@ class PostNotFoundException(HTTPException):
 class NotPostOwnerException(HTTPException):
     def __init__(self):
         super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to modify this post")
+
+class InvalidFileTypeException(HTTPException):
+    def __init__(self, allowed_types):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file type. Allowed types: {', '.join(sorted(allowed_types))}",
+        )
+
+class FileTooLargeException(HTTPException):
+    def __init__(self, max_size_bytes: int):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File too large. Maximum size is {max_size_bytes // (1024 * 1024)} MB",
+        )
+
+class UserNotFoundException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+class CommentNotFoundException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+
+class NotCommentOwnerOrPostOwnerException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail="Only the comment author or the post owner can delete this comment")

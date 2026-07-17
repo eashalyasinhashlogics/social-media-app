@@ -1,10 +1,18 @@
 ﻿import uuid
+import pytest
+from app.db.database import SessionLocal
 from datetime import datetime, timedelta
 from app.services.user_service import UserService
 from app.services.otp_service import OTPService
 from app.schemas.user import UserCreate
 from app.db.enums import OTPType
 from app.models.otp import OTPVerification
+
+@pytest.fixture
+def db():
+    session = SessionLocal()
+    yield session
+    session.close()
 
 def _make_user(db):
     email = f"otp_{uuid.uuid4().hex[:8]}@example.com"

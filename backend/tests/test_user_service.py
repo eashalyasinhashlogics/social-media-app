@@ -1,8 +1,16 @@
 ﻿import uuid
+import pytest
+from app.db.database import SessionLocal
 from app.services.user_service import UserService
 from app.schemas.user import UserCreate
 from app.core.exceptions import UserAlreadyExistsException, InvalidCredentialsException
 from app.models.user import User
+
+@pytest.fixture
+def db():
+    session = SessionLocal()
+    yield session
+    session.close()
 
 def _unique_email():
     return f"svc_{uuid.uuid4().hex[:8]}@example.com"
