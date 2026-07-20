@@ -18,12 +18,14 @@ def create_comment(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return CommentService.create_comment(db, post_id, current_user.id, comment_create)
+    comment = CommentService.create_comment(db, post_id, current_user.id, comment_create)
+    return CommentService.to_response_dict(db, comment)
 
 
 @router.get("/posts/{post_id}/comments", response_model=List[CommentResponse])
 def list_comments(post_id: uuid.UUID, db: Session = Depends(get_db)):
-    return CommentService.list_comments(db, post_id)
+    comments = CommentService.list_comments(db, post_id)
+    return [CommentService.to_response_dict(db, c) for c in comments]
 
 
 @router.delete("/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)

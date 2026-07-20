@@ -53,3 +53,10 @@ class CommentNotFoundException(HTTPException):
 class NotCommentOwnerOrPostOwnerException(HTTPException):
     def __init__(self):
         super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail="Only the comment author or the post owner can delete this comment")
+
+class ParentCommentNotFoundException(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The comment you're replying to doesn't exist or was deleted",
+        )

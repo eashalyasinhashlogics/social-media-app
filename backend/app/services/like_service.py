@@ -31,3 +31,14 @@ class LikeService:
         db.refresh(post)
 
         return {"liked": liked, "like_count": post.like_count}
+        
+    @staticmethod
+    def get_liked_post_ids(db: Session, user_id: uuid.UUID, post_ids: list) -> set:
+        if not post_ids:
+            return set()
+        rows = (
+            db.query(PostLike.post_id)
+            .filter(PostLike.user_id == user_id, PostLike.post_id.in_(post_ids))
+            .all()
+        )
+        return {row[0] for row in rows}

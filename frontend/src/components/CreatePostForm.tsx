@@ -1,56 +1,65 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { postsAPI, mediaAPI, Post } from '@/lib/api'
+import { useState, useRef } from 'react'
+import { postsAPI, mediaAPI, Post, extractErrorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/index'
+
+const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp,image/gif,video/mp4'
+const MAX_IMAGE_MB = 5
+const MAX_VIDEO_MB = 25
 
 export function CreatePostForm({ onCreated }: { onCreated: (post: Post) => void }) {
   const [content, setContent] = useState('')
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
+  const [file, setFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0]
+    if (!selected) return
+    const isVideo = selected.type.startsWith('video/')
+    const maxBytes = (isVideo ? MAX_VIDEO_MB : MAX_IMAGE_MB) * 1024 * 1024
+    if (selected.size > maxBytes) {
+      setError(`File too large. Max ${isVideo ? MAX_VIDEO_MB : MAX_IMAGE_MB} MB for ${isVideo ? 'videos' : 'images'}.`)
+      return
+    }
+    setError(null)
+    setFile(selected)
+    setPreviewUrl(URL.createObjectURL(selected))
   }
 
-  const clearImage = () => {
-    setImageFile(null)
-    setImagePreview(null)
+  const clearFile = () => {
+    setFile(null)
+    setPreviewUrl(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!content.trim()) return
+    if (!content.trim() && !file) return
     setIsSubmitting(true)
     setError(null)
     try {
-      // the backend requires the post to exist before media can be attached
-      const postRes = await postsAPI.create(content.trim())
-      let finalPost = postRes.data
+      const res = await postsAPI.create(content.trim())
+      let finalPost = res.data
 
-      if (imageFile) {
+      if (file) {
         try {
-          const mediaRes = await mediaAPI.uploadPostMedia(finalPost.id, imageFile)
-          finalPost = { ...finalPost, media_url: mediaRes.data.url, media_type: mediaRes.data.media_type }
+          await mediaAPI.uploadPostMedia(finalPost.id, file)
+          const refreshed = await postsAPI.get(finalPost.id)
+          finalPost = refreshed.data
         } catch (mediaErr: any) {
-          // post itself succeeded — surface the media failure but don't lose the post
-          setError(mediaErr.response?.data?.detail || 'Post created, but image upload failed')
+          setError(extractErrorMessage(mediaErr, 'Post created, but the attachment failed to upload'))
         }
       }
 
       onCreated(finalPost)
       setContent('')
-      clearImage()
+      clearFile()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create post')
+      setError(extractErrorMessage(err, 'Failed to create post'))
     } finally {
       setIsSubmitting(false)
     }
@@ -71,38 +80,22 @@ export function CreatePostForm({ onCreated }: { onCreated: (post: Post) => void 
         maxLength={10000}
         className="w-full resize-none border border-[#e2e8f0] rounded-[8px] p-[12px] text-[14px] outline-none transition-all focus:border-[#6366f1] focus:shadow-[0_0_0_3px_rgba(99,102,241,0.1)] mb-[12px]"
       />
-
-      {imagePreview && (
+      {previewUrl && (
         <div className="relative mb-[12px] inline-block">
-          <img src={imagePreview} className="max-h-[200px] rounded-[8px] border border-[#e2e8f0]" />
-          <button
-            type="button"
-            onClick={clearImage}
-            className="absolute top-[-8px] right-[-8px] w-[24px] h-[24px] rounded-full bg-[#1a202c] text-white text-[12px] border-none cursor-pointer flex items-center justify-center"
-            aria-label="Remove image"
-          >
-            ✕
-          </button>
+          {file?.type.startsWith('video/') ? (
+            <video src={previewUrl} controls className="max-h-[220px] rounded-[10px] border border-[#e2e8f0]" />
+          ) : (
+            <img src={previewUrl} alt="Selected attachment preview" className="max-h-[220px] rounded-[10px] border border-[#e2e8f0]" />
+          )}
+          <button type="button" onClick={clearFile} className="absolute top-[6px] right-[6px] bg-[rgba(0,0,0,0.6)] text-white w-[24px] h-[24px] rounded-full border-none cursor-pointer text-[14px]">✕</button>
         </div>
       )}
-
       <div className="flex justify-between items-center">
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="text-[#6366f1] text-[13px] font-[600] bg-transparent border-none cursor-pointer flex items-center gap-[6px]"
-        >
-          <i className="fa-regular fa-image"></i>
-          <span>{imageFile ? 'Change image' : 'Add image'}</span>
+        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-[6px] text-[13px] font-[600] text-[#6366f1] bg-transparent border-none cursor-pointer">
+          <i className="fa-regular fa-image"></i> Add photo/video
         </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          onChange={handleImageSelected}
-          className="hidden"
-        />
-        <Button type="submit" disabled={isSubmitting || !content.trim()}>
+        <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES} onChange={handleFileSelect} className="hidden" />
+        <Button type="submit" disabled={isSubmitting || (!content.trim() && !file)}>
           {isSubmitting ? 'Posting...' : 'Post'}
         </Button>
       </div>

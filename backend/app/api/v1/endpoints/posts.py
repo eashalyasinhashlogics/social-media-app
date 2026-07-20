@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List
 import uuid
 
-from app.core.dependencies import get_db, get_current_user, get_current_user_optional
+from app.core.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.post import PostCreate, PostUpdate, PostResponse, ShareCreate, LikeToggleResponse
 from app.services.post_service import PostService
@@ -19,41 +19,42 @@ def create_post(
     db: Session = Depends(get_db),
 ):
     post = PostService.create_post(db, current_user.id, post_create)
-    return PostService.to_response_dict(db, post, current_user.id)
+    return PostService.to_response_dict(db, post)
 
 
 @router.get("", response_model=List[PostResponse])
-def list_posts(
-    skip: int = 0,
-    limit: int = 20,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db),
-):
+def list_posts(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
     posts = PostService.list_posts(db, skip, limit)
-    viewer_id = current_user.id if current_user else None
-    return [PostService.to_response_dict(db, p, viewer_id) for p in posts]
+    return [PostService.to_response_dict(db, p) for p in posts]
 
 
-# NOTE: must stay registered BEFORE "/{post_id}" below, otherwise FastAPI
-# tries to parse "me" as a post_id UUID and fails with 422.
+# NOTE: "/me/..." routes must stay registered BEFORE "/{post_id}" below,
+# otherwise FastAPI tries to parse "me" as a post_id UUID and fails with 422.
+
 @router.get("/me/archived", response_model=List[PostResponse])
 def list_my_archived_posts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     posts = PostService.list_archived_posts(db, current_user.id)
-    return [PostService.to_response_dict(db, p, current_user.id) for p in posts]
+    liked_ids = LikeService.get_liked_post_ids(db, current_user.id, [p.id for p in posts])
+    return [PostService.to_response_dict(db, p, liked_ids) for p in posts]
+
+
+@router.get("/me/liked-ids", response_model=List[uuid.UUID])
+def list_my_liked_post_ids(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    posts = PostService.list_posts(db, skip=0, limit=1000)
+    liked_ids = LikeService.get_liked_post_ids(db, current_user.id, [p.id for p in posts])
+    return list(liked_ids)
 
 
 @router.get("/{post_id}", response_model=PostResponse)
-def get_post(
-    post_id: uuid.UUID,
-    current_user: Optional[User] = Depends(get_current_user_optional),
-    db: Session = Depends(get_db),
-):
+def get_post(post_id: uuid.UUID, db: Session = Depends(get_db)):
     post = PostService.get_post_or_404(db, post_id)
-    viewer_id = current_user.id if current_user else None
-    return PostService.to_response_dict(db, post, viewer_id)
+    return PostService.to_response_dict(db, post)
 
 
 @router.patch("/{post_id}", response_model=PostResponse)
@@ -64,7 +65,7 @@ def update_post(
     db: Session = Depends(get_db),
 ):
     post = PostService.update_post(db, post_id, current_user.id, post_update)
-    return PostService.to_response_dict(db, post, current_user.id)
+    return PostService.to_response_dict(db, post)
 
 
 @router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -83,7 +84,7 @@ def archive_post(
     db: Session = Depends(get_db),
 ):
     post = PostService.archive_post(db, post_id, current_user.id)
-    return PostService.to_response_dict(db, post, current_user.id)
+    return PostService.to_response_dict(db, post)
 
 
 @router.patch("/{post_id}/unarchive", response_model=PostResponse)
@@ -93,7 +94,7 @@ def unarchive_post(
     db: Session = Depends(get_db),
 ):
     post = PostService.unarchive_post(db, post_id, current_user.id)
-    return PostService.to_response_dict(db, post, current_user.id)
+    return PostService.to_response_dict(db, post)
 
 
 @router.post("/{post_id}/like", response_model=LikeToggleResponse)
@@ -113,4 +114,4 @@ def share_post(
     db: Session = Depends(get_db),
 ):
     share = PostService.share_post(db, post_id, current_user.id, share_create)
-    return PostService.to_response_dict(db, share, current_user.id)
+    return PostService.to_response_dict(db, share)

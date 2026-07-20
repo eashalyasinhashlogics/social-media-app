@@ -6,7 +6,6 @@ import uuid
 from app.models.post import Post
 from app.models.user import User
 from app.models.user_profile import UserProfile
-from app.models.post_like import PostLike
 from app.models.media import Media
 from app.schemas.post import PostCreate, PostUpdate
 from app.db.enums import PostStatus
@@ -132,27 +131,12 @@ class PostService:
         return share
 
     @staticmethod
-    def to_response_dict(db: Session, post: Post, viewer_id: Optional[uuid.UUID] = None) -> dict:
-        """Every endpoint that returns a Post goes through this, so shared
-        posts always carry attribution to the original author/content,
-        and (when viewer_id is known) whether the viewer has liked it."""
+    def to_response_dict(db: Session, post: Post, liked_post_ids: Optional[set] = None) -> dict:
+        """Every endpoint that returns a Post goes through this, so author info,
+        attached media, share attribution, and per-user like state are always
+        consistent no matter which endpoint the post came from."""
         author = db.query(User).filter(User.id == post.author_id).first()
-
-        liked = False
-        if viewer_id:
-            liked = (
-                db.query(PostLike)
-                .filter(PostLike.post_id == post.id, PostLike.user_id == viewer_id)
-                .first()
-                is not None
-            )
-
-        media = (
-            db.query(Media)
-            .filter(Media.post_id == post.id)
-            .order_by(Media.created_at.desc())
-            .first()
-        )
+        media_items = db.query(Media).filter(Media.post_id == post.id).all()
 
         data = {
             "id": post.id,
@@ -168,9 +152,15 @@ class PostService:
             "original_post_id": post.original_post_id,
             "original_author_username": None,
             "original_content": None,
-            "liked_by_me": liked,
-            "media_url": media.url if media else None,
-            "media_type": media.media_type.value if media and hasattr(media.media_type, "value") else (media.media_type if media else None),
+            "media": [
+                {
+                    "id": m.id,
+                    "url": m.url,
+                    "media_type": m.media_type.value if hasattr(m.media_type, "value") else m.media_type,
+                }
+                for m in media_items
+            ],
+            "liked_by_me": post.id in liked_post_ids if liked_post_ids is not None else False,
         }
 
         if post.original_post_id:
@@ -180,8 +170,5 @@ class PostService:
                 original_author = db.query(User).filter(User.id == original.author_id).first()
                 if original_author:
                     data["original_author_username"] = original_author.username
-            # if original is None here, the source post was deleted and
-            # original_post_id was nulled by the FK's ON DELETE SET NULL —
-            # the share still displays fine, just with no attribution fields.
 
         return data

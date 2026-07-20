@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { postsAPI, profileAPI, mediaAPI, Post, Profile } from '@/lib/api'
+import { postsAPI, profileAPI, mediaAPI, resolveMediaUrl, extractErrorMessage, Post, Profile } from '@/lib/api'
 import { PostCard } from '@/components/PostCard'
 import { CreatePostForm } from '@/components/CreatePostForm'
 
@@ -38,8 +38,8 @@ export default function FeedPage() {
   useEffect(() => {
     if (!user) return
     setPostsLoading(true)
-    postsAPI.list()
-      .then((res) => setPosts(res.data))
+    postsAPI.listWithLikeState()
+      .then((data) => setPosts(data))
       .catch(() => setPostsError('Failed to load feed'))
       .finally(() => setPostsLoading(false))
   }, [user])
@@ -100,8 +100,8 @@ export default function FeedPage() {
       const res = await mediaAPI.uploadAvatar(file)
       const avatarUrl = res.data.url
       setProfile((prev) => (prev ? { ...prev, avatar_url: avatarUrl } : prev))
-    } catch {
-      setAvatarError('Failed to upload avatar')
+    } catch (err: any) {
+      setAvatarError(extractErrorMessage(err, 'Failed to upload avatar'))
     } finally {
       setAvatarUploading(false)
       if (avatarInputRef.current) avatarInputRef.current.value = ''
@@ -179,7 +179,11 @@ export default function FeedPage() {
               </button>
               <div className="flex items-center gap-[8px] cursor-pointer" onClick={() => switchTab('profile')}>
                 <div className="relative">
-                  <img src={profile?.avatar_url || 'https://api.dicebear.com/7.x/initials/svg?seed=' + user.username} alt={`${user.username} Avatar`} className="w-[32px] h-[32px] rounded-full object-cover border border-[#e2e8f0]" />
+                  <img
+                    src={profile?.avatar_url ? resolveMediaUrl(profile.avatar_url) : 'https://api.dicebear.com/7.x/initials/svg?seed=' + user.username}
+                    alt={`${user.username} Avatar`}
+                    className="w-[32px] h-[32px] rounded-full object-cover border border-[#e2e8f0]"
+                  />
                   <span className="absolute bottom-0 right-0 w-[10px] h-[10px] bg-[#10b981] border-[2px] border-white rounded-full"></span>
                 </div>
                 <span className="text-[14px] font-semibold text-[#374151]">{user.username}</span>
@@ -224,7 +228,7 @@ export default function FeedPage() {
                     currentUserId={user.id}
                     onUpdated={handlePostUpdated}
                     onDeleted={handlePostDeleted}
-                    onShared={handlePostShared}
+                    onShared={(share) => setPosts((prev) => [share, ...prev])}
                   />
                 ))}
               </div>
@@ -295,7 +299,7 @@ export default function FeedPage() {
                         <div className="absolute top-[-64px] left-[24px]">
                           <div className="relative">
                             <img
-                              src={profile.avatar_url || 'https://api.dicebear.com/7.x/initials/svg?seed=' + profile.username}
+                              src={profile.avatar_url ? resolveMediaUrl(profile.avatar_url) : 'https://api.dicebear.com/7.x/initials/svg?seed=' + profile.username}
                               className="w-[112px] h-[112px] rounded-full object-cover border-[4px] border-white shadow-[0_1px_3px_rgba(0,0,0,0.1)]"
                             />
                             <span className="absolute bottom-[4px] right-[8px] w-[16px] h-[16px] bg-[#10b981] border-[2px] border-white rounded-full"></span>

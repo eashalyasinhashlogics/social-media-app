@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 import uuid
 
@@ -20,6 +20,15 @@ class ShareCreate(BaseModel):
     caption: Optional[str] = Field(None, max_length=10000)
 
 
+class MediaItem(BaseModel):
+    id: uuid.UUID
+    url: str
+    media_type: str
+
+    class Config:
+        from_attributes = True
+
+
 class PostResponse(BaseModel):
     id: uuid.UUID
     author_id: uuid.UUID
@@ -34,9 +43,8 @@ class PostResponse(BaseModel):
     original_post_id: Optional[uuid.UUID] = None
     original_author_username: Optional[str] = None
     original_content: Optional[str] = None
+    media: List[MediaItem] = []
     liked_by_me: bool = False
-    media_url: Optional[str] = None
-    media_type: Optional[str] = None
 
     class Config:
         from_attributes = True

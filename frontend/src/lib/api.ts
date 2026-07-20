@@ -2,6 +2,11 @@ import axios from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
 
+// Origin without the /api/v1 suffix, used to resolve relative media URLs
+// (e.g. "/uploads/abc.jpg") returned by the backend against the API host
+// instead of the frontend's own origin.
+const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, '')
+
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -51,6 +56,44 @@ api.interceptors.response.use(
 
 export default api
 
+// ─── Error handling ─────────────────────────────────────
+// FastAPI/Pydantic v2 validation errors return `detail` as an ARRAY of
+// objects shaped like { type, loc, msg, input, ctx, url } - not a string.
+// Rendering `err.response?.data?.detail` directly in JSX crashes React
+// with "Objects are not valid as a React child" whenever a request fails
+// validation (422). Always run caught errors through this before putting
+// them in state that gets rendered.
+export function extractErrorMessage(err: any, fallback: string): string {
+  const detail = err?.response?.data?.detail
+
+  if (typeof detail === 'string') return detail
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((d: any) => (typeof d === 'string' ? d : d?.msg))
+      .filter(Boolean)
+    return messages.length > 0 ? messages.join('; ') : fallback
+  }
+
+  // Some backends nest a single error object directly under `detail`
+  if (detail && typeof detail === 'object' && typeof detail.msg === 'string') {
+    return detail.msg
+  }
+
+  return fallback
+}
+
+// ─── Media URLs ─────────────────────────────────────────
+// The backend may return relative paths (e.g. "/uploads/abc.jpg"). Left
+// as-is, the browser resolves those against the frontend's own origin
+// (localhost:3000) instead of the API's origin (localhost:8000), which
+// 404s. Absolute URLs (http/https) are passed through untouched.
+export function resolveMediaUrl(url: string | null | undefined): string {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${API_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
 // ─── Auth ───────────────────────────────────────────────
 export const authAPI = {
   register: (email: string, username: string, password: string) =>
@@ -88,60 +131,6 @@ export const oauthAPI = {
   getGithubUrl: () => api.get<{ auth_url: string }>('/oauth/github/authorize'),
 }
 
-// ─── Posts ──────────────────────────────────────────────
-
-export interface Post {
-  id: string
-  author_id: string
-  author_username: string | null
-  content: string
-  status: string
-  like_count: number
-  comment_count: number
-  share_count: number
-  created_at: string
-  updated_at: string
-  original_post_id: string | null
-  original_author_username: string | null
-  original_content: string | null
-  liked_by_me: boolean
-  media_url: string | null
-  media_type: string | null
-}
-
-export const postsAPI = {
-  list: (skip = 0, limit = 20) =>
-    api.get<Post[]>('/posts', { params: { skip, limit } }),
-
-  create: (content: string) =>
-    api.post<Post>('/posts', { content }),
-
-  get: (postId: string) =>
-    api.get<Post>(`/posts/${postId}`),
-
-  update: (postId: string, content: string) =>
-    api.patch<Post>(`/posts/${postId}`, { content }),
-
-  delete: (postId: string) =>
-    api.delete(`/posts/${postId}`),
-
-  archive: (postId: string) =>
-    api.patch<Post>(`/posts/${postId}/archive`),
-
-  unarchive: (postId: string) =>
-    api.patch<Post>(`/posts/${postId}/unarchive`),
-
-  listMyArchived: () =>
-    api.get<Post[]>('/posts/me/archived'),
-
-  toggleLike: (postId: string) =>
-    api.post<{ liked: boolean; like_count: number }>(`/posts/${postId}/like`),
-
-  share: (postId: string, caption?: string) =>
-    api.post<Post>(`/posts/${postId}/share`, { caption: caption || undefined }),
-}
-
-
 // ─── Profile ────────────────────────────────────────────
 export interface Profile {
   user_id: string
@@ -175,25 +164,20 @@ export const mediaAPI = {
   uploadAvatar: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post<Media>('/media/avatar', form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    return api.post('/media/avatar', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
   uploadPostMedia: (postId: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post<Media>(`/media/post/${postId}`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    return api.post(`/media/post/${postId}`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
 }
 
-// ─── Comments ───────────────────────────────────────────
 export interface Comment {
   id: string
   post_id: string
   user_id: string
-  username: string | null
+  author_username: string | null
   parent_comment_id: string | null
   content: string
   like_count: number
@@ -205,9 +189,65 @@ export const commentsAPI = {
   list: (postId: string) =>
     api.get<Comment[]>(`/posts/${postId}/comments`),
 
-  create: (postId: string, content: string) =>
-    api.post<Comment>(`/posts/${postId}/comments`, { content }),
+  create: (postId: string, content: string, parentCommentId?: string) =>
+    api.post<Comment>(`/posts/${postId}/comments`, {
+      content,
+      parent_comment_id: parentCommentId || null,
+    }),
 
   delete: (commentId: string) =>
     api.delete(`/comments/${commentId}`),
+}
+
+export interface MediaItem {
+  id: string
+  url: string
+  media_type: 'image' | 'video' | 'avatar'
+}
+
+export interface Post {
+  id: string
+  author_id: string
+  author_username: string | null
+  content: string
+  status: string
+  like_count: number
+  comment_count: number
+  share_count: number
+  created_at: string
+  updated_at: string
+  original_post_id: string | null
+  original_author_username: string | null
+  original_content: string | null
+  media: MediaItem[]
+  liked_by_me: boolean
+}
+
+export interface LikeToggleResult {
+  liked: boolean
+  like_count: number
+}
+
+export const postsAPI = {
+  list: (skip = 0, limit = 20) =>
+    api.get<Post[]>('/posts', { params: { skip, limit } }),
+
+  listWithLikeState: async (skip = 0, limit = 20): Promise<Post[]> => {
+    const [postsRes, likedIdsRes] = await Promise.all([
+      api.get<Post[]>('/posts', { params: { skip, limit } }),
+      api.get<string[]>('/posts/me/liked-ids').catch(() => ({ data: [] as string[] })),
+    ])
+    const likedSet = new Set(likedIdsRes.data)
+    return postsRes.data.map((p) => ({ ...p, liked_by_me: likedSet.has(p.id) }))
+  },
+
+  create: (content: string) => api.post<Post>('/posts', { content }),
+  get: (postId: string) => api.get<Post>(`/posts/${postId}`),
+  update: (postId: string, content: string) => api.patch<Post>(`/posts/${postId}`, { content }),
+  delete: (postId: string) => api.delete(`/posts/${postId}`),
+  archive: (postId: string) => api.patch<Post>(`/posts/${postId}/archive`),
+  unarchive: (postId: string) => api.patch<Post>(`/posts/${postId}/unarchive`),
+  listMyArchived: () => api.get<Post[]>('/posts/me/archived'),
+  toggleLike: (postId: string) => api.post<LikeToggleResult>(`/posts/${postId}/like`),
+  share: (postId: string, caption: string) => api.post<Post>(`/posts/${postId}/share`, { caption: caption || null }),
 }

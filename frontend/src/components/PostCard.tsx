@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { postsAPI, Post } from '@/lib/api'
+import { postsAPI, Post, extractErrorMessage, resolveMediaUrl } from '@/lib/api'
 import { CommentSection } from '@/components/CommentSection'
 import { ShareModal } from '@/components/ShareModal'
 
@@ -42,7 +42,7 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
       onUpdated(res.data)
       setEditing(false)
     } catch (err: any) {
-      setRowError(err.response?.data?.detail || 'Failed to save changes')
+      setRowError(extractErrorMessage(err, 'Failed to save changes'))
     } finally {
       setEditSaving(false)
     }
@@ -54,7 +54,7 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
       await postsAPI.delete(post.id)
       onDeleted(post.id)
     } catch (err: any) {
-      setRowError(err.response?.data?.detail || 'Failed to delete post')
+      setRowError(extractErrorMessage(err, 'Failed to delete post'))
     }
   }
 
@@ -65,7 +65,7 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
         : await postsAPI.archive(post.id)
       onUpdated(res.data)
     } catch (err: any) {
-      setRowError(err.response?.data?.detail || 'Failed to update post status')
+      setRowError(extractErrorMessage(err, 'Failed to update post status'))
     } finally {
       setMenuOpen(false)
     }
@@ -212,13 +212,26 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
         </div>
       )}
 
-      {/* F7: attached image */}
-      {post.media_url && (
-        <img
-          src={post.media_url}
-          alt="Post attachment"
-          className="mt-[10px] rounded-[10px] max-h-[420px] w-full object-cover border border-[#e2e8f0]"
-        />
+      {post.media && post.media.length > 0 && (
+        <div className="mt-[10px]">
+          {post.media.map((m) =>
+            m.media_type === 'video' ? (
+              <video
+                key={m.id}
+                src={resolveMediaUrl(m.url)}
+                controls
+                className="rounded-[10px] max-h-[420px] w-full object-cover border border-[#e2e8f0]"
+              />
+            ) : (
+              <img
+                key={m.id}
+                src={resolveMediaUrl(m.url)}
+                alt="Post attachment"
+                className="rounded-[10px] max-h-[420px] w-full object-cover border border-[#e2e8f0]"
+              />
+            )
+          )}
+        </div>
       )}
 
       {/* F5/F6/F8: stats row */}

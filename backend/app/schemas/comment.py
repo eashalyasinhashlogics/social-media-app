@@ -13,7 +13,7 @@ class CommentResponse(BaseModel):
     id: uuid.UUID
     post_id: uuid.UUID
     user_id: uuid.UUID
-    username: Optional[str] = None
+    author_username: Optional[str] = None
     parent_comment_id: Optional[uuid.UUID] = None
     content: str
     like_count: int
