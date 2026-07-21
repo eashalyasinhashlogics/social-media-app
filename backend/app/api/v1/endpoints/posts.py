@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import uuid
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, get_current_user_optional
 from app.models.user import User
 from app.schemas.post import PostCreate, PostUpdate, PostResponse, ShareCreate, LikeToggleResponse
 from app.services.post_service import PostService
@@ -23,9 +23,20 @@ def create_post(
 
 
 @router.get("", response_model=List[PostResponse])
-def list_posts(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
+def list_posts(
+    skip: int = 0,
+    limit: int = 20,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
     posts = PostService.list_posts(db, skip, limit)
-    return [PostService.to_response_dict(db, p) for p in posts]
+    # Batched: one query for authors, one for media, one (+1) for shares,
+    # regardless of how many posts are on the page - fixes the feed N+1.
+    liked_ids = (
+        LikeService.get_liked_post_ids(db, current_user.id, [p.id for p in posts])
+        if current_user else set()
+    )
+    return PostService.to_response_dict_batch(db, posts, liked_ids)
 
 
 # NOTE: "/me/..." routes must stay registered BEFORE "/{post_id}" below,
@@ -38,7 +49,7 @@ def list_my_archived_posts(
 ):
     posts = PostService.list_archived_posts(db, current_user.id)
     liked_ids = LikeService.get_liked_post_ids(db, current_user.id, [p.id for p in posts])
-    return [PostService.to_response_dict(db, p, liked_ids) for p in posts]
+    return PostService.to_response_dict_batch(db, posts, liked_ids)
 
 
 @router.get("/me/liked-ids", response_model=List[uuid.UUID])

@@ -3,6 +3,8 @@ from typing import Optional, List
 from datetime import datetime
 import uuid
 
+from app.schemas.base import UTCTimestampMixin
+
 
 class PostBase(BaseModel):
     content: str = Field(..., min_length=1, max_length=10000)
@@ -29,7 +31,7 @@ class MediaItem(BaseModel):
         from_attributes = True
 
 
-class PostResponse(BaseModel):
+class PostResponse(UTCTimestampMixin, BaseModel):
     id: uuid.UUID
     author_id: uuid.UUID
     author_username: Optional[str] = None

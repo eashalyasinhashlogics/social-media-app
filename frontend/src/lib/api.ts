@@ -135,17 +135,31 @@ export const oauthAPI = {
 export interface Profile {
   user_id: string
   username: string
+  display_name: string | null
   bio: string | null
   avatar_url: string | null
+  cover_photo_url: string | null
   follower_count: number
   following_count: number
   post_count: number
   posts: Post[]
 }
 
+export interface ProfileUpdatePayload {
+  username?: string
+  display_name?: string
+  bio?: string
+}
+
 export const profileAPI = {
   getOwnProfile: () => api.get<Profile>('/users/me/profile'),
   getPublicProfile: (userId: string) => api.get<Profile>(`/users/${userId}/profile`),
+
+  // Powers the Edit Profile modal - send only the fields that changed.
+  updateProfile: (payload: ProfileUpdatePayload) => api.patch<Profile>('/users/me/profile', payload),
+
+  // Kept as a thin convenience wrapper - some older call sites only
+  // ever touched bio.
   updateBio: (bio: string) => api.patch<Profile>('/users/me/profile', { bio }),
 }
 
@@ -164,7 +178,12 @@ export const mediaAPI = {
   uploadAvatar: (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return api.post('/media/avatar', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return api.post<Media>('/media/avatar', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  uploadCoverPhoto: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<Media>('/media/cover', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
   uploadPostMedia: (postId: string, file: File) => {
     const form = new FormData()
@@ -202,7 +221,7 @@ export const commentsAPI = {
 export interface MediaItem {
   id: string
   url: string
-  media_type: 'image' | 'video' | 'avatar'
+  media_type: 'image' | 'video' | 'avatar' | 'cover'
 }
 
 export interface Post {
@@ -232,13 +251,13 @@ export const postsAPI = {
   list: (skip = 0, limit = 20) =>
     api.get<Post[]>('/posts', { params: { skip, limit } }),
 
+  // The backend now computes `liked_by_me` correctly for the calling
+  // user directly on GET /posts (via an optional-auth dependency), so
+  // this no longer needs a second round trip to /posts/me/liked-ids -
+  // it's kept only so existing call sites don't need to change.
   listWithLikeState: async (skip = 0, limit = 20): Promise<Post[]> => {
-    const [postsRes, likedIdsRes] = await Promise.all([
-      api.get<Post[]>('/posts', { params: { skip, limit } }),
-      api.get<string[]>('/posts/me/liked-ids').catch(() => ({ data: [] as string[] })),
-    ])
-    const likedSet = new Set(likedIdsRes.data)
-    return postsRes.data.map((p) => ({ ...p, liked_by_me: likedSet.has(p.id) }))
+    const res = await api.get<Post[]>('/posts', { params: { skip, limit } })
+    return res.data
   },
 
   create: (content: string) => api.post<Post>('/posts', { content }),

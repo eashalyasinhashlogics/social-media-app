@@ -3,8 +3,10 @@ from typing import Optional
 from datetime import datetime
 import uuid
 
+from app.schemas.base import UTCTimestampMixin
 
-class MediaResponse(BaseModel):
+
+class MediaResponse(UTCTimestampMixin, BaseModel):
     id: uuid.UUID
     uploader_id: uuid.UUID
     post_id: Optional[uuid.UUID] = None

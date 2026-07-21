@@ -24,3 +24,4 @@ class MediaType(str, enum.Enum):
     image = "image"
     video = "video"
     avatar = "avatar"
+    cover = "cover"

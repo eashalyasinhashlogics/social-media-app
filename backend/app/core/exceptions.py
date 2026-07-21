@@ -46,6 +46,10 @@ class UserNotFoundException(HTTPException):
     def __init__(self):
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
+class UsernameTakenException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail="That username is already taken")
+
 class CommentNotFoundException(HTTPException):
     def __init__(self):
         super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")

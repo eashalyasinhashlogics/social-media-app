@@ -19,6 +19,15 @@ async def upload_avatar(
     return await MediaService.upload_avatar(db, current_user.id, file)
 
 
+@router.post("/cover", response_model=MediaResponse, status_code=status.HTTP_201_CREATED)
+async def upload_cover_photo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return await MediaService.upload_cover_photo(db, current_user.id, file)
+
+
 @router.post("/post/{post_id}", response_model=MediaResponse, status_code=status.HTTP_201_CREATED)
 async def upload_post_media(
     post_id: uuid.UUID,

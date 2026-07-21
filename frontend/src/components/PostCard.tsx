@@ -1,18 +1,34 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { postsAPI, Post, extractErrorMessage, resolveMediaUrl } from '@/lib/api'
 import { CommentSection } from '@/components/CommentSection'
 import { ShareModal } from '@/components/ShareModal'
 
+// Bug fix: the backend now serializes created_at/updated_at with an
+// explicit UTC offset (e.g. "...+00:00"), which `new Date(...)` parses
+// correctly on its own. The fallback branch below is defense-in-depth
+// for any timestamp that somehow arrives without an offset (e.g. an
+// older cached response) - it's treated as UTC instead of the browser's
+// local timezone, which was the root cause of "wrong" times before.
 function timeAgo(dateString: string): string {
-  const diffMs = Date.now() - new Date(dateString).getTime()
+  const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(dateString)
+  const normalized = hasOffset ? dateString : `${dateString}Z`
+  const diffMs = Date.now() - new Date(normalized).getTime()
   const diffMins = Math.floor(diffMs / 60000)
   if (diffMins < 1) return 'just now'
   if (diffMins < 60) return `${diffMins}m ago`
   const diffHours = Math.floor(diffMins / 60)
   if (diffHours < 24) return `${diffHours}h ago`
   return `${Math.floor(diffHours / 24)}d ago`
+}
+
+// A username on a post always links to that author's profile - their
+// own profile page if it's the viewer's own post, otherwise the public
+// profile route.
+function profileHref(authorId: string, currentUserId: string): string {
+  return authorId === currentUserId ? '/profile' : `/profile/${authorId}`
 }
 
 interface PostCardProps {
@@ -24,7 +40,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }: PostCardProps) {
-  const isOwner = post.author_id === currentUserId
+  const isOwner = String(post.author_id) === String(currentUserId)
 
   // ── Edit / delete / archive (baseline post-owner controls) ──
   const [menuOpen, setMenuOpen] = useState(false)
@@ -109,14 +125,21 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-[10px]">
-          <img
-            src={'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)}
-            className="w-[40px] h-[40px] rounded-full object-cover border border-[#e2e8f0]"
-            alt={`${post.author_username || 'Unknown'} avatar`}
-          />
+          <Link href={profileHref(post.author_id, currentUserId)}>
+            <img
+              src={'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)}
+              className="w-[40px] h-[40px] rounded-full object-cover border border-[#e2e8f0] cursor-pointer"
+              alt={`${post.author_username || 'Unknown'} avatar`}
+            />
+          </Link>
           <div>
             <div className="flex items-center gap-[6px]">
-              <span className="text-[14px] font-[700] text-[#1a202c]">{post.author_username || 'Unknown user'}</span>
+              <Link
+                href={profileHref(post.author_id, currentUserId)}
+                className="text-[14px] font-[700] text-[#1a202c] hover:underline"
+              >
+                {post.author_username || 'Unknown user'}
+              </Link>
               {post.status === 'archived' && (
                 <span className="text-[10px] font-[600] text-[#9ca3af] bg-[#f1f5f9] px-[8px] py-[2px] rounded-full">Archived</span>
               )}

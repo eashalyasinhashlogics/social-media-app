@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
+from collections import defaultdict
 import uuid
 
 from app.models.post import Post
@@ -130,45 +131,94 @@ class PostService:
         db.refresh(share)
         return share
 
+    # ── Response shaping ──────────────────────────────────────────────
+    # `to_response_dict` is a thin wrapper around the batched version so
+    # every call site (single-post or list) goes through the same shaping
+    # logic and stays consistent. Only `to_response_dict_batch` actually
+    # talks to the database; use it directly whenever you have more than
+    # one post, or you're back to the N+1 pattern this replaced.
+
     @staticmethod
     def to_response_dict(db: Session, post: Post, liked_post_ids: Optional[set] = None) -> dict:
-        """Every endpoint that returns a Post goes through this, so author info,
-        attached media, share attribution, and per-user like state are always
-        consistent no matter which endpoint the post came from."""
-        author = db.query(User).filter(User.id == post.author_id).first()
-        media_items = db.query(Media).filter(Media.post_id == post.id).all()
+        return PostService.to_response_dict_batch(db, [post], liked_post_ids)[0]
 
-        data = {
-            "id": post.id,
-            "author_id": post.author_id,
-            "author_username": author.username if author else None,
-            "content": post.content,
-            "status": post.status.value if hasattr(post.status, "value") else post.status,
-            "like_count": post.like_count,
-            "comment_count": post.comment_count,
-            "share_count": post.share_count,
-            "created_at": post.created_at,
-            "updated_at": post.updated_at,
-            "original_post_id": post.original_post_id,
-            "original_author_username": None,
-            "original_content": None,
-            "media": [
-                {
-                    "id": m.id,
-                    "url": m.url,
-                    "media_type": m.media_type.value if hasattr(m.media_type, "value") else m.media_type,
-                }
-                for m in media_items
-            ],
-            "liked_by_me": post.id in liked_post_ids if liked_post_ids is not None else False,
+    @staticmethod
+    def to_response_dict_batch(db: Session, posts: list, liked_post_ids: Optional[set] = None) -> list:
+        """Builds response dicts for a list of posts using a fixed number
+        of batched queries (author lookup, media lookup, original-post
+        lookup, original-author lookup) instead of one round trip per
+        post per relation. Every endpoint that returns one or many posts
+        should go through here so author info, media, share attribution,
+        and per-user like state stay consistent no matter which endpoint
+        the posts came from."""
+        if not posts:
+            return []
+
+        liked_post_ids = liked_post_ids or set()
+        post_ids = [p.id for p in posts]
+
+        # 1 query: authors of the posts themselves
+        author_ids = {p.author_id for p in posts}
+        authors_by_id = {
+            u.id: u for u in db.query(User).filter(User.id.in_(author_ids)).all()
         }
 
-        if post.original_post_id:
-            original = db.query(Post).filter(Post.id == post.original_post_id).first()
-            if original:
-                data["original_content"] = original.content
-                original_author = db.query(User).filter(User.id == original.author_id).first()
-                if original_author:
-                    data["original_author_username"] = original_author.username
+        # 1 query: all media attached to any of these posts
+        media_by_post_id = defaultdict(list)
+        for m in db.query(Media).filter(Media.post_id.in_(post_ids)).all():
+            media_by_post_id[m.post_id].append(m)
 
-        return data
+        # 1 query (+1 for their authors): shared/original posts
+        original_ids = {p.original_post_id for p in posts if p.original_post_id}
+        originals_by_id = {}
+        original_authors_by_id = {}
+        if original_ids:
+            originals_by_id = {
+                p.id: p for p in db.query(Post).filter(Post.id.in_(original_ids)).all()
+            }
+            original_author_ids = {p.author_id for p in originals_by_id.values()}
+            original_authors_by_id = {
+                u.id: u for u in db.query(User).filter(User.id.in_(original_author_ids)).all()
+            }
+
+        results = []
+        for post in posts:
+            author = authors_by_id.get(post.author_id)
+            media_items = media_by_post_id.get(post.id, [])
+
+            data = {
+                "id": post.id,
+                "author_id": post.author_id,
+                "author_username": author.username if author else None,
+                "content": post.content,
+                "status": post.status.value if hasattr(post.status, "value") else post.status,
+                "like_count": post.like_count,
+                "comment_count": post.comment_count,
+                "share_count": post.share_count,
+                "created_at": post.created_at,
+                "updated_at": post.updated_at,
+                "original_post_id": post.original_post_id,
+                "original_author_username": None,
+                "original_content": None,
+                "media": [
+                    {
+                        "id": m.id,
+                        "url": m.url,
+                        "media_type": m.media_type.value if hasattr(m.media_type, "value") else m.media_type,
+                    }
+                    for m in media_items
+                ],
+                "liked_by_me": post.id in liked_post_ids,
+            }
+
+            if post.original_post_id:
+                original = originals_by_id.get(post.original_post_id)
+                if original:
+                    data["original_content"] = original.content
+                    original_author = original_authors_by_id.get(original.author_id)
+                    if original_author:
+                        data["original_author_username"] = original_author.username
+
+            results.append(data)
+
+        return results

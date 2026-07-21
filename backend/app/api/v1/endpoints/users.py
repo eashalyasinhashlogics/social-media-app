@@ -1,8 +1,9 @@
 ﻿from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from typing import Optional
 import uuid
 
-from app.core.dependencies import get_db, get_current_user
+from app.core.dependencies import get_db, get_current_user, get_current_user_optional
 from app.models.user import User
 from app.schemas.user import UserResponse
 from app.schemas.user_profile import ProfileResponse, ProfileUpdate
@@ -32,7 +33,16 @@ def update_own_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    ProfileService.update_bio(db, current_user.id, profile_update.bio)
+    # Powers the Edit Profile modal - username, display name, and bio
+    # can all be updated in a single request (any omitted field is
+    # left untouched).
+    ProfileService.update_profile(
+        db,
+        current_user.id,
+        username=profile_update.username,
+        display_name=profile_update.display_name,
+        bio=profile_update.bio,
+    )
     return ProfileService.get_own_profile(db, current_user.id)
 
 
@@ -45,5 +55,13 @@ def get_user(user_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{user_id}/profile", response_model=ProfileResponse)
-def get_public_profile(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    return ProfileService.get_public_profile(db, user_id)
+def get_public_profile(
+    user_id: uuid.UUID,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    # current_user is optional - anyone can view a public profile, but if
+    # the visitor happens to be logged in we still want their own
+    # liked_by_me state on each post, not a blanket False.
+    viewer_id = current_user.id if current_user else None
+    return ProfileService.get_public_profile(db, user_id, viewer_id)
