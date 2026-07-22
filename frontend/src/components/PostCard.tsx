@@ -47,10 +47,11 @@ const CONTENT_TRUNCATE_LENGTH = 220
 type PostWithPresence = Post & {
   // Optional additions on top of the existing Post type - safe to omit.
   // Falls back to just the username / no dot if your API doesn't send
-  // these yet. Wire these up on the backend to get the "@handle" and
-  // green online indicator shown in the mockup.
+  // these yet. Wire these up on the backend to get the "@handle", green
+  // online indicator, and real profile photo shown in the mockup.
   author_display_name?: string
   author_is_online?: boolean
+  author_avatar_url?: string | null
 }
 
 interface PostCardProps {
@@ -141,9 +142,12 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
   // ── F8: share ──
   const [shareOpen, setShareOpen] = useState(false)
 
-  // ── Header: display name / handle / online status ──
+  // ── Header: display name / handle / online status / avatar ──
   const displayName = post.author_display_name || post.author_username || 'Unknown user'
   const isOnline = post.author_is_online === true
+  const avatarSrc =
+    resolveMediaUrl(post.author_avatar_url ?? null) ||
+    `https://api.dicebear.com/7.x/initials/svg?seed=${post.author_username || post.author_id}`
 
   // ── Read more / less ──
   const [expanded, setExpanded] = useState(false)
@@ -160,7 +164,7 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
         <div className="flex items-center gap-[10px]">
           <Link href={profileHref(post.author_id, currentUserId)} className="relative shrink-0">
             <img
-              src={'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)}
+              src={avatarSrc}
               className="w-[40px] h-[40px] rounded-full object-cover border border-[#e2e8f0] cursor-pointer"
               alt={`${post.author_username || 'Unknown'} avatar`}
             />

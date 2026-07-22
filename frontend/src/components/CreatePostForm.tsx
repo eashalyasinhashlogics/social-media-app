@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, type ChangeEvent, type FormEvent } from 'react'
 import { postsAPI, mediaAPI, Post, extractErrorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/index'
+import { useProfile } from '@/context/ProfileContext'
 
 const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp,image/gif,video/mp4'
 const MAX_IMAGE_MB = 5
@@ -15,6 +16,8 @@ export function CreatePostForm({ onCreated }: { onCreated: (post: Post) => void 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { setOwnProfile } = useProfile()
 
   useEffect(() => {
     return () => {
@@ -65,6 +68,14 @@ export function CreatePostForm({ onCreated }: { onCreated: (post: Post) => void 
           setError(extractErrorMessage(mediaErr, 'Post created, but the attachment failed to upload'))
         }
       }
+
+      // Keep the profile context in sync so /profile shows the new post
+      // immediately, without needing a reload.
+      setOwnProfile((prev) =>
+        prev
+          ? { ...prev, posts: [finalPost, ...prev.posts], post_count: prev.post_count + 1 }
+          : prev
+      )
 
       onCreated(finalPost)
       setContent('')
