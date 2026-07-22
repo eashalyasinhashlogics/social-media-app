@@ -31,8 +31,30 @@ function profileHref(authorId: string, currentUserId: string): string {
   return authorId === currentUserId ? '/profile' : `/profile/${authorId}`
 }
 
+// Compact count formatting for the stats row, e.g. 1800 -> "1.8K".
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return String(n)
+}
+
+function pluralize(n: number, word: string): string {
+  return `${formatCount(n)} ${word}${n === 1 ? '' : 's'}`
+}
+
+const CONTENT_TRUNCATE_LENGTH = 220
+
+type PostWithPresence = Post & {
+  // Optional additions on top of the existing Post type - safe to omit.
+  // Falls back to just the username / no dot if your API doesn't send
+  // these yet. Wire these up on the backend to get the "@handle" and
+  // green online indicator shown in the mockup.
+  author_display_name?: string
+  author_is_online?: boolean
+}
+
 interface PostCardProps {
-  post: Post
+  post: PostWithPresence
   currentUserId: string
   onUpdated: (post: Post) => void
   onDeleted: (postId: string) => void
@@ -119,32 +141,52 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
   // ── F8: share ──
   const [shareOpen, setShareOpen] = useState(false)
 
-  return (
-    <div className="bg-white border border-[#e2e8f0] rounded-[16px] p-[18px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] mb-[16px]">
+  // ── Header: display name / handle / online status ──
+  const displayName = post.author_display_name || post.author_username || 'Unknown user'
+  const isOnline = post.author_is_online === true
 
+  // ── Read more / less ──
+  const [expanded, setExpanded] = useState(false)
+  const isLongContent = post.content.length > CONTENT_TRUNCATE_LENGTH
+  const displayContent = expanded || !isLongContent ? post.content : post.content.slice(0, CONTENT_TRUNCATE_LENGTH)
+
+  // ── Save (bookmark) - UI-only until postsAPI exposes a save/unsave call ──
+  const [saved, setSaved] = useState(false)
+
+  return (
+    <div className="bg-white border border-[#e2e8f0] rounded-[16px] p-[18px] shadow-sm mb-[16px]">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-[10px]">
-          <Link href={profileHref(post.author_id, currentUserId)}>
+          <Link href={profileHref(post.author_id, currentUserId)} className="relative shrink-0">
             <img
               src={'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)}
               className="w-[40px] h-[40px] rounded-full object-cover border border-[#e2e8f0] cursor-pointer"
               alt={`${post.author_username || 'Unknown'} avatar`}
             />
+            {isOnline && (
+              <span
+                className="absolute bottom-0 right-0 w-[11px] h-[11px] bg-[#22c55e] border-[2px] border-white rounded-full"
+                aria-hidden="true"
+              ></span>
+            )}
           </Link>
           <div>
-            <div className="flex items-center gap-[6px]">
+            <div className="flex flex-col gap-y-[2px]">
               <Link
                 href={profileHref(post.author_id, currentUserId)}
-                className="text-[14px] font-[700] text-[#1a202c] hover:underline"
+                className="text-[14px] font-[700] text-[#1a202c] no-underline"
               >
-                {post.author_username || 'Unknown user'}
+                {displayName}
               </Link>
-              {post.status === 'archived' && (
-                <span className="text-[10px] font-[600] text-[#9ca3af] bg-[#f1f5f9] px-[8px] py-[2px] rounded-full">Archived</span>
-              )}
+              <div className="flex items-center flex-wrap gap-x-[6px] gap-y-[2px] text-[13px] text-[#9ca3af]">
+                <span>@{post.author_username}</span>
+                <span>· {timeAgo(post.created_at)}</span>
+                {post.status === 'archived' && (
+                  <span className="text-[10px] font-[600] bg-[#f1f5f9] px-[8px] py-[2px] rounded-full">Archived</span>
+                )}
+              </div>
             </div>
-            <span className="text-[11px] text-[#9ca3af]">{timeAgo(post.created_at)}</span>
           </div>
         </div>
 
@@ -216,12 +258,36 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
           </div>
         </div>
       ) : (
-        <p className="mt-[10px] text-[14px] text-[#1a202c] whitespace-pre-wrap break-words">{post.content}</p>
+        <p className="mt-[10px] text-[14px] text-[#1a202c] whitespace-pre-wrap break-words">
+          {displayContent}
+          {isLongContent && !expanded && (
+            <>
+              {'... '}
+              <button
+                onClick={() => setExpanded(true)}
+                className="text-[#6366f1] bg-transparent border-none cursor-pointer p-0 text-[14px] hover:underline"
+              >
+                more
+              </button>
+            </>
+          )}
+          {isLongContent && expanded && (
+            <>
+              {' '}
+              <button
+                onClick={() => setExpanded(false)}
+                className="text-[#6366f1] bg-transparent border-none cursor-pointer p-0 text-[14px] hover:underline"
+              >
+                less
+              </button>
+            </>
+          )}
+        </p>
       )}
 
       {/* F8: quoted original post (only null-vs-empty distinguishes a deleted source) */}
       {post.original_post_id && (
-        <div className="mt-[10px] border border-[#e2e8f0] rounded-[10px] p-[10px] bg-[#f8fafc]">
+        <div className="mt-[10px] border border-[#e2e8f0] rounded-[10px] p-[10px] bg-white">
           {post.original_content !== null ? (
             <>
               <div className="text-[12px] font-[600] text-[#1a202c] mb-[2px]">
@@ -257,28 +323,40 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
         </div>
       )}
 
-      {/* F5/F6/F8: stats row */}
-      <div className="flex items-center gap-[20px] mt-[14px] pt-[12px] border-t border-[#f1f5f9] text-[13px] text-[#64748b]">
+      {/* Stats summary: likes / comments / shares */}
+      <div className="flex items-center justify-between mt-[14px] pt-[12px] border-t border-[#f1f5f9] text-[13px] text-[#64748b]">
+        <span>{pluralize(likeCount, 'like')}</span>
+        <span className="flex items-center gap-[14px]">
+          <span>{pluralize(commentCount, 'comment')}</span>
+          <span>{pluralize(post.share_count, 'share')}</span>
+        </span>
+      </div>
+
+      {/* Action buttons: Like / Comment / Share / Save */}
+      <div className="flex items-center justify-between gap-[8px] mt-[6px] pt-[6px] border-t border-[#f1f5f9]">
         <button
           onClick={handleToggleLike}
           disabled={likeBusy}
-          className={`bg-transparent border-none cursor-pointer flex items-center gap-[4px] text-[13px] transition-colors duration-150 ease disabled:opacity-60 ${liked ? 'text-[#ef4444] font-[600]' : 'text-[#64748b] hover:text-[#ef4444]'}`}
+          className={`flex items-center justify-center gap-[6px] py-[8px] rounded-[8px] bg-transparent border-none cursor-pointer text-[13px] font-[600] transition-colors duration-150 ease hover:bg-[#f8fafc] disabled:opacity-60 ${liked ? 'text-[#ef4444]' : 'text-[#64748b] hover:text-[#ef4444]'}`}
         >
           <i className={liked ? 'fa-solid fa-heart' : 'fa-regular fa-heart'}></i>
-          <span>{likeCount}</span>
+          <span>Like</span>
         </button>
         <button
           onClick={() => setCommentsOpen(!commentsOpen)}
-          className="bg-transparent border-none cursor-pointer flex items-center gap-[4px] text-[13px] text-[#64748b] hover:text-[#6366f1] transition-colors duration-150 ease"
+          className="flex items-center justify-center gap-[6px] py-[8px] rounded-[8px] bg-transparent border-none cursor-pointer text-[13px] font-[600] text-[#64748b] hover:bg-[#f8fafc] hover:text-[#6366f1] transition-colors duration-150 ease"
         >
-          💬 <span>{commentCount}</span>
+          <i className="fa-regular fa-comment"></i>
+          <span>Comment</span>
         </button>
         <button
           onClick={() => setShareOpen(true)}
-          className="bg-transparent border-none cursor-pointer flex items-center gap-[4px] text-[13px] text-[#64748b] hover:text-[#10b981] transition-colors duration-150 ease"
+          className="flex items-center justify-center gap-[6px] py-[8px] rounded-[8px] bg-transparent border-none cursor-pointer text-[13px] font-[600] text-[#64748b] hover:bg-[#f8fafc] hover:text-[#10b981] transition-colors duration-150 ease"
         >
-          ↻ <span>{post.share_count}</span>
+          <i className="fa-solid fa-share-nodes"></i>
+          <span>Share</span>
         </button>
+       
       </div>
 
       {/* F6: comments */}

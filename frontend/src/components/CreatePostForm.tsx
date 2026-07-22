@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef, type ChangeEvent, type FormEvent } from 'react'
 import { postsAPI, mediaAPI, Post, extractErrorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/index'
 
@@ -16,7 +16,15 @@ export function CreatePostForm({ onCreated }: { onCreated: (post: Post) => void 
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+  }, [previewUrl])
+
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0]
     if (!selected) return
     const isVideo = selected.type.startsWith('video/')
@@ -31,12 +39,15 @@ export function CreatePostForm({ onCreated }: { onCreated: (post: Post) => void 
   }
 
   const clearFile = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+    }
     setFile(null)
     setPreviewUrl(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!content.trim() && !file) return
     setIsSubmitting(true)
@@ -91,11 +102,15 @@ export function CreatePostForm({ onCreated }: { onCreated: (post: Post) => void 
         </div>
       )}
       <div className="flex justify-between items-center">
-        <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-[6px] text-[13px] font-[600] text-[#6366f1] bg-transparent border-none cursor-pointer">
-          <i className="fa-regular fa-image"></i> Add photo/video
+        <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Add photo or video" title="Add photo or video" className="flex items-center justify-center w-[36px] h-[36px] text-[13px] font-[600] text-[#6366f1] bg-transparent border-none cursor-pointer">
+          {/* Camera / media icon */}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <path d="M4 7H7L9 4H15L17 7H20C21.1 7 22 7.9 22 9V19C22 20.1 21.1 21 20 21H4C2.9 21 2 20.1 2 19V9C2 7.9 2.9 7 4 7Z" stroke="#6366F1" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            <circle cx="12" cy="14" r="3.2" stroke="#6366F1" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </button>
         <input ref={fileInputRef} type="file" accept={ACCEPTED_TYPES} onChange={handleFileSelect} className="hidden" />
-        <Button type="submit" disabled={isSubmitting || (!content.trim() && !file)}>
+        <Button type="submit" disabled={isSubmitting || (!content.trim() && !file)} className="px-[10px] py-[8px]">
           {isSubmitting ? 'Posting...' : 'Post'}
         </Button>
       </div>
