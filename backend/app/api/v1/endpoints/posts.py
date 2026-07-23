@@ -126,3 +126,19 @@ def share_post(
 ):
     share = PostService.share_post(db, post_id, current_user.id, share_create)
     return PostService.to_response_dict(db, share)
+# --- Feed: added by Milestone 3 Step 2 setup script ---
+from app.services.follow_service import FollowService
+
+# NOTE: register BEFORE "/{post_id}" for the same reason as /me/archived above.
+
+@router.get("/feed/following", response_model=List[PostResponse])
+def get_feed(
+    skip: int = 0,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    following_ids = FollowService.get_following_ids(db, current_user.id)
+    posts = PostService.get_feed(db, current_user.id, following_ids, skip, limit)
+    liked_ids = LikeService.get_liked_post_ids(db, current_user.id, [p.id for p in posts])
+    return PostService.to_response_dict_batch(db, posts, liked_ids)

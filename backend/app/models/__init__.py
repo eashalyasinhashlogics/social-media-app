@@ -9,4 +9,9 @@ from app.models.media import Media
 from app.models.post_like import PostLike
 from app.models.comment import Comment
 from app.db.base import Base
-__all__ = ["Base", "User", "OTPVerification", "OAuthCredentials", "UserProfile", "RefreshToken", "UserSession", "Post", "Media", "PostLike", "Comment"]
+from app.models.user import User
+from app.models.post import Post
+from app.models.follow import Follow  
+__all__ = ["Base", "User", "OTPVerification", "OAuthCredentials", "UserProfile", "RefreshToken", "UserSession", "Post", "Media", "PostLike", "Comment" , "User", "Post", "Follow"]
+
+
