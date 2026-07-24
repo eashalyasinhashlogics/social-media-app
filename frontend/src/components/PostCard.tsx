@@ -45,11 +45,6 @@ function pluralize(n: number, word: string): string {
 const CONTENT_TRUNCATE_LENGTH = 220
 
 type PostWithPresence = Post & {
-  // Optional additions on top of the existing Post type - safe to omit.
-  // Falls back to just the username / no dot if your API doesn't send
-  // these yet. Wire these up on the backend to get the "@handle" and
-  // green online indicator shown in the mockup. `author_avatar_url`
-  // itself now comes from the base Post type.
   author_display_name?: string
   author_is_online?: boolean
 }

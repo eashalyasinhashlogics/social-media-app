@@ -10,7 +10,7 @@ from app.models.user_profile import UserProfile
 from app.models.media import Media
 from app.schemas.post import PostCreate, PostUpdate
 from app.db.enums import PostStatus
-from app.core.exceptions import PostNotFoundException, NotPostOwnerException
+from app.core.exceptions import PostNotFoundException, NotPostOwnerException, ArchivedPostShareException
 
 
 class PostService:
@@ -112,6 +112,14 @@ class PostService:
     def share_post(db: Session, original_post_id: uuid.UUID, user_id: uuid.UUID, share_create) -> Post:
         original = PostService.get_post_or_404(db, original_post_id)
 
+        # Archived posts are hidden from the owner's own feed/profile view
+        # by choice - sharing one would republish it into other people's
+        # feeds behind the owner's back, which defeats the point of
+        # archiving. Blocked here (not just in the UI) so the rule holds
+        # no matter which client calls the API.
+        if original.status == PostStatus.archived:
+            raise ArchivedPostShareException()
+
         share = Post(
             author_id=user_id,
             content=share_create.caption or "",
@@ -191,13 +199,22 @@ class PostService:
         for m in db.query(Media).filter(Media.post_id.in_(post_ids)).all():
             media_by_post_id[m.post_id].append(m)
 
-        # 1 query (+1 for their authors): shared/original posts
+        # 1 query (+1 for their authors): shared/original posts.
+        # Only pull in originals that are still `active` - an archived or
+        # soft-deleted original must not leak its content into a share
+        # that shows up in other people's feeds. `data["original_content"]`
+        # stays None for those (same as when the original row is gone
+        # entirely), and the frontend already renders that as
+        # "Original post unavailable".
         original_ids = {p.original_post_id for p in posts if p.original_post_id}
         originals_by_id = {}
         original_authors_by_id = {}
         if original_ids:
             originals_by_id = {
-                p.id: p for p in db.query(Post).filter(Post.id.in_(original_ids)).all()
+                p.id: p
+                for p in db.query(Post)
+                .filter(Post.id.in_(original_ids), Post.status == PostStatus.active)
+                .all()
             }
             original_author_ids = {p.author_id for p in originals_by_id.values()}
             original_authors_by_id = {
