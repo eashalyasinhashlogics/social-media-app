@@ -9,6 +9,9 @@ from app.schemas.user import UserResponse
 from app.schemas.user_profile import ProfileResponse, ProfileUpdate
 from app.services.user_service import UserService
 from app.services.profile_service import ProfileService
+from app.schemas.follow import FollowResponse, FollowerUser
+from app.services.follow_service import FollowService
+from typing import List
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -65,3 +68,32 @@ def get_public_profile(
     # liked_by_me state on each post, not a blanket False.
     viewer_id = current_user.id if current_user else None
     return ProfileService.get_public_profile(db, user_id, viewer_id)
+
+
+
+@router.post("/{user_id}/follow", response_model=FollowResponse, status_code=status.HTTP_201_CREATED)
+def follow_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return FollowService.follow(db, current_user.id, user_id)
+
+
+@router.delete("/{user_id}/follow", response_model=FollowResponse)
+def unfollow_user(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return FollowService.unfollow(db, current_user.id, user_id)
+
+
+@router.get("/{user_id}/followers", response_model=List[FollowerUser])
+def list_followers(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    return FollowService.list_followers(db, user_id)
+
+
+@router.get("/{user_id}/following", response_model=List[FollowerUser])
+def list_following(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    return FollowService.list_following(db, user_id)

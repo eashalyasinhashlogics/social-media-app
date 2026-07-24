@@ -140,3 +140,23 @@ class ProfileService:
             db.add(profile)
 
         db.commit()
+
+    @staticmethod
+    def remove_avatar(db: Session, user_id: uuid.UUID) -> None:
+        """Detaches the profile picture. Non-destructive: the underlying
+        Media row/file is left alone (mirrors how archiving a post
+        doesn't delete it) - only the profile's pointer to it is cleared,
+        so the frontend falls back to the dicebear default avatar."""
+        profile = ProfileService._get_or_create_profile(db, user_id)
+        profile.profile_picture_id = None
+        db.add(profile)
+        db.commit()
+
+    @staticmethod
+    def remove_cover_photo(db: Session, user_id: uuid.UUID) -> None:
+        """Detaches the cover photo. Same non-destructive behavior as
+        remove_avatar - frontend falls back to the gradient default."""
+        profile = ProfileService._get_or_create_profile(db, user_id)
+        profile.cover_photo_id = None
+        db.add(profile)
+        db.commit()

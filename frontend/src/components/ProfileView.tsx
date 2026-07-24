@@ -27,11 +27,17 @@ export function ProfileView({
   const [archivedOpen, setArchivedOpen] = useState(false)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
 
-  // Archived posts are excluded from the grid on purpose (own profile
-  // response includes them so the owner can still act on them via the
-  // "View archived posts" panel; a public viewer's response never
-  // contains them in the first place).
-  const visiblePosts = profile.posts.filter((p) => p.status !== 'archived')
+  // Archived and soft-deleted posts are excluded from the grid (and from
+  // the "posts" stat badge below) on purpose. `profile.post_count` from
+  // the backend is a lifetime counter - it only decrements on hard/soft
+  // delete and is untouched by archiving - so it can't be used directly
+  // as the visible count. The owner's own profile response may still
+  // include archived/deleted posts in `profile.posts` (so the owner can
+  // act on them elsewhere, e.g. the archived-posts panel); a public
+  // viewer's response never contains them in the first place.
+  const visiblePosts = profile.posts.filter(
+    (p) => p.status !== 'archived' && p.status !== 'deleted'
+  )
 
   return (
     <div className="max-w-[720px] mx-auto">
@@ -89,7 +95,7 @@ export function ProfileView({
         {profile.bio && <p className="mt-[10px] text-[14px] text-[#374151] whitespace-pre-wrap">{profile.bio}</p>}
 
         <div className="flex items-center gap-[20px] mt-[14px] text-[13px]">
-          <span><b className="text-[#1a202c]">{profile.post_count}</b> <span className="text-[#64748b]">posts</span></span>
+          <span><b className="text-[#1a202c]">{visiblePosts.length}</b> <span className="text-[#64748b]">posts</span></span>
           <span><b className="text-[#1a202c]">{profile.follower_count}</b> <span className="text-[#64748b]">followers</span></span>
           <span><b className="text-[#1a202c]">{profile.following_count}</b> <span className="text-[#64748b]">following</span></span>
         </div>
