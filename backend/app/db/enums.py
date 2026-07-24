@@ -25,3 +25,12 @@ class MediaType(str, enum.Enum):
     video = "video"
     avatar = "avatar"
     cover = "cover"
+
+class FriendRequestStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    rejected = "rejected"
+
+class ConversationType(str, enum.Enum):
+    direct = "direct"
+    group = "group"
