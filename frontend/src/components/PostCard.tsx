@@ -156,7 +156,10 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
         <div className="flex items-center gap-[10px]">
           <Link href={profileHref(post.author_id, currentUserId)} className="relative shrink-0">
             <img
-              src={'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)}
+              src={
+                resolveMediaUrl(post.author_avatar_url) ||
+                'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)
+              }
               className="w-[40px] h-[40px] rounded-full object-cover border border-[#e2e8f0] cursor-pointer"
               alt={`${post.author_username || 'Unknown'} avatar`}
             />
