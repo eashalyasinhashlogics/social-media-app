@@ -35,6 +35,7 @@ class PostResponse(UTCTimestampMixin, BaseModel):
     id: uuid.UUID
     author_id: uuid.UUID
     author_username: Optional[str] = None
+    author_avatar_url: Optional[str] = None
     content: str
     status: str
     like_count: int

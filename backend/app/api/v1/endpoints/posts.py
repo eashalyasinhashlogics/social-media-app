@@ -8,6 +8,8 @@ from app.models.user import User
 from app.schemas.post import PostCreate, PostUpdate, PostResponse, ShareCreate, LikeToggleResponse
 from app.services.post_service import PostService
 from app.services.like_service import LikeService
+from app.db.enums import PostStatus
+from app.core.exceptions import PostNotFoundException
 
 router = APIRouter(prefix="/posts", tags=["posts"])
 
@@ -63,8 +65,20 @@ def list_my_liked_post_ids(
 
 
 @router.get("/{post_id}", response_model=PostResponse)
-def get_post(post_id: uuid.UUID, db: Session = Depends(get_db)):
+def get_post(
+    post_id: uuid.UUID,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
     post = PostService.get_post_or_404(db, post_id)
+    # Archived posts are only visible to their own author (via the
+    # "View archived posts" panel, which calls a different endpoint) -
+    # anyone else hitting this URL directly (bookmarked link, guessed
+    # UUID, etc.) gets the same 404 they'd get for a post that never
+    # existed, instead of the archived content.
+    is_owner = current_user is not None and current_user.id == post.author_id
+    if post.status == PostStatus.archived and not is_owner:
+        raise PostNotFoundException()
     return PostService.to_response_dict(db, post)
 
 

@@ -190,6 +190,8 @@ export const mediaAPI = {
     form.append('file', file)
     return api.post(`/media/post/${postId}`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
+  removeAvatar: () => api.delete('/media/avatar'),
+  removeCoverPhoto: () => api.delete('/media/cover'),
 }
 
 export interface Comment {
@@ -228,6 +230,7 @@ export interface Post {
   id: string
   author_id: string
   author_username: string | null
+  author_avatar_url: string | null
   content: string
   status: string
   like_count: number

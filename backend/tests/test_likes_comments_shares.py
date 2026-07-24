@@ -260,3 +260,55 @@ def test_share_survives_original_post_deletion():
     finally:
         _cleanup_user(user_a_id)
         _cleanup_user(user_b_id)
+
+def test_archiving_original_hides_its_content_from_existing_shares():
+    user_a_id, headers_a = _register_verified_user()
+    user_b_id, headers_b = _register_verified_user()
+    try:
+        post = _create_post(headers_a)
+        post_id = post["id"]
+
+        share = client.post(
+            f"/api/v1/posts/{post_id}/share", json={"caption": "before archiving"}, headers=headers_b
+        ).json()
+        assert share["original_content"] == post["content"]
+
+        resp = client.patch(f"/api/v1/posts/{post_id}/archive", headers=headers_a)
+        assert resp.status_code == 200
+
+        # The share still exists and loads, but no longer exposes the
+        # archived original's content - same "unavailable" shape as a
+        # deleted original.
+        resp = client.get(f"/api/v1/posts/{share['id']}")
+        assert resp.status_code == 200
+        assert resp.json()["original_content"] is None
+    finally:
+        _cleanup_user(user_a_id)
+        _cleanup_user(user_b_id)
+
+
+def test_archived_post_not_directly_fetchable_by_non_owner():
+    user_a_id, headers_a = _register_verified_user()
+    user_b_id, headers_b = _register_verified_user()
+    try:
+        post = _create_post(headers_a)
+        post_id = post["id"]
+
+        resp = client.patch(f"/api/v1/posts/{post_id}/archive", headers=headers_a)
+        assert resp.status_code == 200
+
+        # Anonymous visitor: 404, not the archived content
+        resp = client.get(f"/api/v1/posts/{post_id}")
+        assert resp.status_code == 404
+
+        # A different logged-in user: also 404
+        resp = client.get(f"/api/v1/posts/{post_id}", headers=headers_b)
+        assert resp.status_code == 404
+
+        # The owner themselves can still fetch it directly
+        resp = client.get(f"/api/v1/posts/{post_id}", headers=headers_a)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "archived"
+    finally:
+        _cleanup_user(user_a_id)
+        _cleanup_user(user_b_id)

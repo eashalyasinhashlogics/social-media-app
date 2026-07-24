@@ -36,3 +36,20 @@ async def upload_post_media(
     db: Session = Depends(get_db),
 ):
     return await MediaService.upload_post_media(db, current_user.id, post_id, file)
+
+@router.delete("/avatar", status_code=204)
+def remove_avatar(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ProfileService.remove_avatar(db, current_user.id)
+    return None
+
+
+@router.delete("/cover", status_code=204)
+def remove_cover_photo(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ProfileService.remove_cover_photo(db, current_user.id)
+    return None

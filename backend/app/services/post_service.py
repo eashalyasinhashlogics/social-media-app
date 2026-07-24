@@ -10,7 +10,7 @@ from app.models.user_profile import UserProfile
 from app.models.media import Media
 from app.schemas.post import PostCreate, PostUpdate
 from app.db.enums import PostStatus
-from app.core.exceptions import PostNotFoundException, NotPostOwnerException
+from app.core.exceptions import PostNotFoundException, NotPostOwnerException, ArchivedPostShareException
 
 
 class PostService:
@@ -112,6 +112,14 @@ class PostService:
     def share_post(db: Session, original_post_id: uuid.UUID, user_id: uuid.UUID, share_create) -> Post:
         original = PostService.get_post_or_404(db, original_post_id)
 
+        # Archived posts are hidden from the owner's own feed/profile view
+        # by choice - sharing one would republish it into other people's
+        # feeds behind the owner's back, which defeats the point of
+        # archiving. Blocked here (not just in the UI) so the rule holds
+        # no matter which client calls the API.
+        if original.status == PostStatus.archived:
+            raise ArchivedPostShareException()
+
         share = Post(
             author_id=user_id,
             content=share_create.caption or "",
@@ -163,18 +171,50 @@ class PostService:
             u.id: u for u in db.query(User).filter(User.id.in_(author_ids)).all()
         }
 
+        # 2 queries: author avatars, via UserProfile.profile_picture_id -> Media.url.
+        # Mirrors ProfileService._media_url, but batched across every author on the
+        # page instead of one row at a time.
+        profiles_by_user_id = {
+            p.user_id: p
+            for p in db.query(UserProfile).filter(UserProfile.user_id.in_(author_ids)).all()
+        }
+        avatar_media_ids = {
+            p.profile_picture_id for p in profiles_by_user_id.values() if p.profile_picture_id
+        }
+        avatar_url_by_media_id = {}
+        if avatar_media_ids:
+            avatar_url_by_media_id = {
+                m.id: m.url
+                for m in db.query(Media).filter(Media.id.in_(avatar_media_ids)).all()
+            }
+
+        def _avatar_url_for(user_id) -> Optional[str]:
+            profile = profiles_by_user_id.get(user_id)
+            if not profile or not profile.profile_picture_id:
+                return None
+            return avatar_url_by_media_id.get(profile.profile_picture_id)
+
         # 1 query: all media attached to any of these posts
         media_by_post_id = defaultdict(list)
         for m in db.query(Media).filter(Media.post_id.in_(post_ids)).all():
             media_by_post_id[m.post_id].append(m)
 
-        # 1 query (+1 for their authors): shared/original posts
+        # 1 query (+1 for their authors): shared/original posts.
+        # Only pull in originals that are still `active` - an archived or
+        # soft-deleted original must not leak its content into a share
+        # that shows up in other people's feeds. `data["original_content"]`
+        # stays None for those (same as when the original row is gone
+        # entirely), and the frontend already renders that as
+        # "Original post unavailable".
         original_ids = {p.original_post_id for p in posts if p.original_post_id}
         originals_by_id = {}
         original_authors_by_id = {}
         if original_ids:
             originals_by_id = {
-                p.id: p for p in db.query(Post).filter(Post.id.in_(original_ids)).all()
+                p.id: p
+                for p in db.query(Post)
+                .filter(Post.id.in_(original_ids), Post.status == PostStatus.active)
+                .all()
             }
             original_author_ids = {p.author_id for p in originals_by_id.values()}
             original_authors_by_id = {
@@ -190,6 +230,7 @@ class PostService:
                 "id": post.id,
                 "author_id": post.author_id,
                 "author_username": author.username if author else None,
+                "author_avatar_url": _avatar_url_for(post.author_id),
                 "content": post.content,
                 "status": post.status.value if hasattr(post.status, "value") else post.status,
                 "like_count": post.like_count,

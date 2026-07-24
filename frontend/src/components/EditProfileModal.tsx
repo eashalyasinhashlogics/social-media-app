@@ -46,8 +46,11 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarRemoved, setAvatarRemoved] = useState(false)
+
   const [coverFile, setCoverFile] = useState<File | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const [coverRemoved, setCoverRemoved] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -65,6 +68,7 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
     setError(null)
     setAvatarFile(file)
     setAvatarPreview(URL.createObjectURL(file))
+    setAvatarRemoved(false)
   }
 
   const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,6 +81,23 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
     setError(null)
     setCoverFile(file)
     setCoverPreview(URL.createObjectURL(file))
+    setCoverRemoved(false)
+  }
+
+  const handleRemoveAvatar = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setAvatarFile(null)
+    setAvatarPreview(null)
+    setAvatarRemoved(true)
+    if (avatarInputRef.current) avatarInputRef.current.value = ''
+  }
+
+  const handleRemoveCover = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setCoverFile(null)
+    setCoverPreview(null)
+    setCoverRemoved(true)
+    if (coverInputRef.current) coverInputRef.current.value = ''
   }
 
   const handleSave = async () => {
@@ -87,8 +108,17 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
     setSaving(true)
     setError(null)
     try {
-      if (avatarFile) await mediaAPI.uploadAvatar(avatarFile)
-      if (coverFile) await mediaAPI.uploadCoverPhoto(coverFile)
+      if (avatarFile) {
+        await mediaAPI.uploadAvatar(avatarFile)
+      } else if (avatarRemoved) {
+        await mediaAPI.removeAvatar()
+      }
+
+      if (coverFile) {
+        await mediaAPI.uploadCoverPhoto(coverFile)
+      } else if (coverRemoved) {
+        await mediaAPI.removeCoverPhoto()
+      }
 
       const payload: Record<string, string> = {}
       if (username.trim() !== profile.username) payload.username = username.trim()
@@ -108,6 +138,14 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
     }
   }
 
+  // Effective sources factor in a pending removal even before Save is
+  // clicked, so the modal previews what the profile will look like.
+  const effectiveCoverUrl = coverRemoved ? null : (coverPreview || resolveMediaUrl(profile.cover_photo_url) || null)
+  const effectiveAvatarUrl = avatarRemoved ? null : (avatarPreview || resolveMediaUrl(profile.avatar_url) || null)
+
+  const hasCoverToRemove = !!coverFile || (!!profile.cover_photo_url && !coverRemoved)
+  const hasAvatarToRemove = !!avatarFile || (!!profile.avatar_url && !avatarRemoved)
+
   const modal = (
     <div style={overlayStyle} onClick={onClose}>
       <div style={panelStyle} onClick={(e) => e.stopPropagation()}>
@@ -125,15 +163,21 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
         <div className="relative">
           <div
             className="h-[120px] bg-[linear-gradient(135deg,#6366f1,#4f46e5)] bg-cover bg-center cursor-pointer"
-            style={{
-              backgroundImage: `url(${coverPreview || resolveMediaUrl(profile.cover_photo_url) || ''})`,
-            }}
+            style={effectiveCoverUrl ? { backgroundImage: `url(${effectiveCoverUrl})` } : undefined}
             onClick={() => coverInputRef.current?.click()}
           >
-            <div className="w-full h-full flex items-center justify-center bg-black/20 hover:bg-black/35 transition-colors duration-150">
+            <div className="w-full h-full flex items-center justify-center gap-[14px] bg-black/20 hover:bg-black/35 transition-colors duration-150">
               <span className="text-white text-[12px] font-[600] flex items-center gap-[6px]">
                 <i className="fa-solid fa-camera"></i> Change cover
               </span>
+              {hasCoverToRemove && (
+                <button
+                  onClick={handleRemoveCover}
+                  className="text-white text-[12px] font-[600] flex items-center gap-[6px] bg-transparent border-none cursor-pointer underline"
+                >
+                  <i className="fa-solid fa-trash"></i> Remove
+                </button>
+              )}
             </div>
           </div>
           <input
@@ -150,13 +194,22 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
           >
             <div className="relative w-[64px] h-[64px]">
               <img
-                src={avatarPreview || resolveMediaUrl(profile.avatar_url) || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`}
+                src={effectiveAvatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`}
                 className="w-[64px] h-[64px] rounded-full object-cover border-[3px] border-white shadow-[0_2px_6px_rgba(0,0,0,0.15)]"
                 alt="Avatar"
               />
               <div className="absolute inset-0 rounded-full bg-black/30 opacity-0 hover:opacity-100 transition-opacity duration-150 flex items-center justify-center">
                 <i className="fa-solid fa-camera text-white text-[13px]"></i>
               </div>
+              {hasAvatarToRemove && (
+                <button
+                  onClick={handleRemoveAvatar}
+                  className="absolute -right-[4px] -bottom-[4px] w-[20px] h-[20px] rounded-full bg-white border border-[#e2e8f0] shadow-[0_1px_3px_rgba(0,0,0,0.15)] flex items-center justify-center text-[#ef4444] text-[10px] cursor-pointer"
+                  aria-label="Remove avatar"
+                >
+                  <i className="fa-solid fa-trash"></i>
+                </button>
+              )}
             </div>
           </div>
           <input
