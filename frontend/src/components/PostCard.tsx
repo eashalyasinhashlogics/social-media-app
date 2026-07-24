@@ -45,10 +45,6 @@ function pluralize(n: number, word: string): string {
 const CONTENT_TRUNCATE_LENGTH = 220
 
 type PostWithPresence = Post & {
-  // Optional additions on top of the existing Post type - safe to omit.
-  // Falls back to just the username / no dot if your API doesn't send
-  // these yet. Wire these up on the backend to get the "@handle" and
-
   author_display_name?: string
   author_is_online?: boolean
 }
@@ -160,7 +156,10 @@ export function PostCard({ post, currentUserId, onUpdated, onDeleted, onShared }
         <div className="flex items-center gap-[10px]">
           <Link href={profileHref(post.author_id, currentUserId)} className="relative shrink-0">
             <img
-              src={'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)}
+              src={
+                resolveMediaUrl(post.author_avatar_url) ||
+                'https://api.dicebear.com/7.x/initials/svg?seed=' + (post.author_username || post.author_id)
+              }
               className="w-[40px] h-[40px] rounded-full object-cover border border-[#e2e8f0] cursor-pointer"
               alt={`${post.author_username || 'Unknown'} avatar`}
             />
