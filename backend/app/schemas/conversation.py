@@ -31,16 +31,13 @@ class ConversationResponse(UTCTimestampMixin, BaseModel):
     participant_ids: List[uuid.UUID]
     last_message: Optional[MessageResponse] = None
     last_message_at: Optional[datetime] = None
+    unread_count: int = 0
     created_at: datetime
     updated_at: datetime
 
     class Config:
         from_attributes = True
 
-    # last_message_at isn't covered by UTCTimestampMixin (which only
-    # re-stamps created_at/updated_at), but it's the same naive-datetime
-    # situation - stamp it as UTC too so conversation ordering on the
-    # frontend doesn't drift by the viewer's timezone offset.
     @field_serializer("last_message_at", when_used="json")
     def _serialize_last_message_at(self, value: Optional[datetime]) -> Optional[str]:
         if value is None:
@@ -48,3 +45,11 @@ class ConversationResponse(UTCTimestampMixin, BaseModel):
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
         return value.isoformat()
+
+class MarkReadResponse(BaseModel):
+    marked_read: int
+
+
+class UnreadCountResponse(BaseModel):
+    conversation_id: uuid.UUID
+    unread_count: int

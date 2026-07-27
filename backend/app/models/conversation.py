@@ -15,7 +15,11 @@ class Conversation(Base):
     # FK to messages.id is added by the migration *after* the messages
     # table exists (chicken-and-egg), same trick already used for
     # user_profiles.profile_picture_id -> media.
-    last_message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True)
+    last_message_id = Column(
+    UUID(as_uuid=True),
+    ForeignKey("messages.id", name="fk_conversations_last_message_id", use_alter=True),
+    nullable=True,
+    )
     last_message_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

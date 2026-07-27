@@ -72,7 +72,7 @@ export function AppNavbar() {
       </div>
 
       <div className="flex items-center gap-[16px]">
-        <Link
+        {/* <Link
           href="/feed"
           className="bg-[#5B52E7] hover:bg-[#4C43D4] px-[20px] py-[8px] rounded-full text-[14px] shadow-[0_4px_6px_rgba(91,82,231,0.1)] border-none cursor-pointer flex items-center gap-[8px] transition-all duration-200 ease no-underline"
           style={{ color: '#ffffff' }}
@@ -80,7 +80,7 @@ export function AppNavbar() {
         >
           <i className="fa-solid fa-plus text-[12px]" style={{ color: '#ffffff' }}></i>
           <span style={{ color: '#ffffff', fontWeight: 700 }}>Create</span>
-        </Link>
+        </Link> */}
         <Link href="/profile" className="flex items-center gap-[8px] no-underline">
           <div className="relative">
             <img

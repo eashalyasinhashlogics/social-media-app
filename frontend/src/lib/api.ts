@@ -117,12 +117,24 @@ export const authAPI = {
 }
 
 // ─── Users ──────────────────────────────────────────────
+export interface UserSummary {
+  id: string
+  email: string
+  username: string
+  email_verified: boolean
+  role: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export const usersAPI = {
-  getMe: () => api.get<{
-    id: string; email: string; username: string
-    email_verified: boolean; role: string; status: string
-    created_at: string; updated_at: string
-  }>('/users/me'),
+  getMe: () => api.get<UserSummary>('/users/me'),
+
+  // GET /users/{user_id} - used to resolve a bare user id (e.g. from a
+  // friend-request payload, which only carries from_user_id/to_user_id)
+  // into a username for display.
+  getById: (userId: string) => api.get<UserSummary>(`/users/${userId}`),
 }
 
 // ─── OAuth ──────────────────────────────────────────────
@@ -272,4 +284,60 @@ export const postsAPI = {
   listMyArchived: () => api.get<Post[]>('/posts/me/archived'),
   toggleLike: (postId: string) => api.post<LikeToggleResult>(`/posts/${postId}/like`),
   share: (postId: string, caption: string) => api.post<Post>(`/posts/${postId}/share`, { caption: caption || null }),
+}
+
+// ─── Follow ─────────────────────────────────────────────
+export interface FollowResult {
+  following: boolean
+  follower_count: number
+  following_count: number
+}
+export interface FollowerUser {
+  id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+}
+export const followAPI = {
+  follow: (userId: string) => api.post<FollowResult>(`/users/${userId}/follow`),
+  unfollow: (userId: string) => api.delete<FollowResult>(`/users/${userId}/follow`),
+  followers: (userId: string) => api.get<FollowerUser[]>(`/users/${userId}/followers`),
+  following: (userId: string) => api.get<FollowerUser[]>(`/users/${userId}/following`),
+}
+
+// ─── Feed (following) ───────────────────────────────────
+export const feedAPI = {
+  getFollowingFeed: (skip = 0, limit = 20) =>
+    api.get<Post[]>('/posts/feed/following', { params: { skip, limit } }),
+}
+
+// ─── Friends ────────────────────────────────────────────
+export interface FriendRequest {
+  id: string
+  from_user_id: string
+  to_user_id: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+export interface FriendUser {
+  id: string
+  email: string
+  username: string
+  role: string
+  status: string
+}
+export interface Friendship {
+  friend: FriendUser
+  friends_since: string
+}
+export const friendsAPI = {
+  send: (toUserId: string) => api.post<FriendRequest>('/friend-requests', { to_user_id: toUserId }),
+  listIncoming: () => api.get<FriendRequest[]>('/friend-requests', { params: { direction: 'incoming' } }),
+  listOutgoing: () => api.get<FriendRequest[]>('/friend-requests', { params: { direction: 'outgoing' } }),
+  accept: (requestId: string) => api.post<FriendRequest>(`/friend-requests/${requestId}/accept`),
+  reject: (requestId: string) => api.post<FriendRequest>(`/friend-requests/${requestId}/reject`),
+  cancel: (requestId: string) => api.delete(`/friend-requests/${requestId}`),
+  listFriends: () => api.get<Friendship[]>('/friends'),
+  unfriend: (userId: string) => api.delete(`/friends/${userId}`),
 }

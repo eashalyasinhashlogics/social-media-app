@@ -44,21 +44,32 @@ def _register_verified_user():
 
     return user_id, {"Authorization": f"Bearer {token}"}
 
-
 def _cleanup_user(user_id):
     db = SessionLocal()
-    conv_ids = [
-        row[0] for row in
-        db.query(ConversationParticipant.conversation_id).filter(ConversationParticipant.user_id == user_id).all()
-    ]
-    if conv_ids:
-        db.query(Message).filter(Message.conversation_id.in_(conv_ids)).delete(synchronize_session=False)
-        db.query(ConversationParticipant).filter(ConversationParticipant.conversation_id.in_(conv_ids)).delete(synchronize_session=False)
-        db.query(Conversation).filter(Conversation.id.in_(conv_ids)).delete(synchronize_session=False)
-    db.query(UserProfile).filter(UserProfile.user_id == user_id).delete()
-    db.query(User).filter(User.id == user_id).delete()
-    db.commit()
-    db.close()
+    try:
+        conv_ids = [
+            row[0] for row in
+            db.query(ConversationParticipant.conversation_id).filter(ConversationParticipant.user_id == user_id).all()
+        ]
+        if conv_ids:
+            # conversations.last_message_id points at a row in messages -
+            # clear that reference FIRST, or deleting messages violates
+            # the FK (a plain bulk DELETE doesn't auto-cascade an update
+            # the way "ON DELETE SET NULL" does for a direct row delete).
+            db.query(Conversation).filter(Conversation.id.in_(conv_ids)).update(
+                {"last_message_id": None}, synchronize_session=False
+            )
+            db.flush()
+
+            db.query(Message).filter(Message.conversation_id.in_(conv_ids)).delete(synchronize_session=False)
+            db.query(ConversationParticipant).filter(ConversationParticipant.conversation_id.in_(conv_ids)).delete(synchronize_session=False)
+            db.query(Conversation).filter(Conversation.id.in_(conv_ids)).delete(synchronize_session=False)
+
+        db.query(UserProfile).filter(UserProfile.user_id == user_id).delete()
+        db.query(User).filter(User.id == user_id).delete()
+        db.commit()
+    finally:
+        db.close()
 
 
 # ---------- starting a conversation ----------
