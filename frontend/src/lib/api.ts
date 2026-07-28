@@ -6,6 +6,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1
 // (e.g. "/uploads/abc.jpg") returned by the backend against the API host
 // instead of the frontend's own origin.
 const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, '')
+// ─── WebSocket ──────────────────────────────────────────
+export function getChatWsUrl(): string {
+  return `${API_ORIGIN.replace(/^http/, 'ws')}/ws/chat`
+}
 
 const api = axios.create({
   baseURL: API_URL,
@@ -340,4 +344,34 @@ export const friendsAPI = {
   cancel: (requestId: string) => api.delete(`/friend-requests/${requestId}`),
   listFriends: () => api.get<Friendship[]>('/friends'),
   unfriend: (userId: string) => api.delete(`/friends/${userId}`),
+}
+// ─── Conversations / Chat ───────────────────────────────
+export interface Message {
+  id: string
+  conversation_id: string
+  sender_id: string
+  content: string
+  created_at: string
+}
+export interface Conversation {
+  id: string
+  type: string
+  participant_ids: string[]
+  last_message: Message | null
+  last_message_at: string | null
+  unread_count: number
+  created_at: string
+  updated_at: string
+}
+export const conversationsAPI = {
+  start: (userId: string) => api.post<Conversation>('/conversations', { user_id: userId }),
+  list: (skip = 0, limit = 20) => api.get<Conversation[]>('/conversations', { params: { skip, limit } }),
+  messages: (conversationId: string, skip = 0, limit = 50) =>
+    api.get<Message[]>(`/conversations/${conversationId}/messages`, { params: { skip, limit } }),
+  send: (conversationId: string, content: string) =>
+    api.post<Message>(`/conversations/${conversationId}/messages`, { content }),
+  markRead: (conversationId: string) =>
+    api.post<{ marked_read: number }>(`/conversations/${conversationId}/read`),
+  unreadCount: (conversationId: string) =>
+    api.get<{ conversation_id: string; unread_count: number }>(`/conversations/${conversationId}/unread-count`),
 }

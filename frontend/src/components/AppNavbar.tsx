@@ -1,10 +1,11 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { useProfile } from '@/context/ProfileContext'
-import { resolveMediaUrl } from '@/lib/api'
+import { resolveMediaUrl, conversationsAPI, friendsAPI } from '@/lib/api'
 
 interface Tab {
   key: string
@@ -34,6 +35,55 @@ export function AppNavbar() {
   const router = useRouter()
   const { user, logout } = useAuthStore()
   const { ownProfile } = useProfile()
+  const [unreadTotal, setUnreadTotal] = useState(0)
+  const [incomingRequestCount, setIncomingRequestCount] = useState(0)
+
+  // Reuses the same conversationsAPI.list() call the Messages page
+  // already makes rather than adding a new endpoint - good enough for
+  // "kept simple" per the milestone spec. 20s is frequent enough to
+  // feel live without hammering the backend.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+
+    const poll = () => {
+      conversationsAPI
+        .list()
+        .then((res) => {
+          if (cancelled) return
+          setUnreadTotal(res.data.reduce((sum, c) => sum + c.unread_count, 0))
+        })
+        .catch(() => {})
+    }
+
+    poll()
+    const interval = setInterval(poll, 20000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+
+    const poll = () => {
+      friendsAPI
+        .listIncoming()
+        .then((res) => {
+          if (!cancelled) setIncomingRequestCount(res.data.length)
+        })
+        .catch(() => {})
+    }
+
+    poll()
+    const interval = setInterval(poll, 20000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [user])
 
   const handleLogout = async () => {
     await logout()
@@ -57,13 +107,20 @@ export function AppNavbar() {
       <div className="flex items-center gap-[4px] bg-white p-[4px] rounded-[12px] border border-[#e2e8f0]">
         {TABS.map((tab) => {
           const isActive = tab.href === '/profile' ? pathname.startsWith('/profile') : pathname === tab.href
+          const badge =
+            tab.key === 'messages' && unreadTotal > 0
+              ? String(unreadTotal > 99 ? '99+' : unreadTotal)
+              : tab.key === 'notifications' && incomingRequestCount > 0
+              ? String(incomingRequestCount)
+              : tab.badge
+
           return (
             <Link key={tab.key} href={tab.href} className={isActive ? TAB_ACTIVE_CLASSES : TAB_BASE_CLASSES}>
               <i className={`fa-solid fa-${tab.icon}`}></i>
               <span>{tab.label}</span>
-              {tab.badge && (
+              {badge && (
                 <span className="absolute top-[-4px] right-[-4px] bg-[#06b6d4] text-white text-[10px] font-bold w-[16px] h-[16px] rounded-full flex items-center justify-center border border-white">
-                  {tab.badge}
+                  {badge}
                 </span>
               )}
             </Link>
@@ -72,15 +129,6 @@ export function AppNavbar() {
       </div>
 
       <div className="flex items-center gap-[16px]">
-        {/* <Link
-          href="/feed"
-          className="bg-[#5B52E7] hover:bg-[#4C43D4] px-[20px] py-[8px] rounded-full text-[14px] shadow-[0_4px_6px_rgba(91,82,231,0.1)] border-none cursor-pointer flex items-center gap-[8px] transition-all duration-200 ease no-underline"
-          style={{ color: '#ffffff' }}
-          aria-label="Create"
-        >
-          <i className="fa-solid fa-plus text-[12px]" style={{ color: '#ffffff' }}></i>
-          <span style={{ color: '#ffffff', fontWeight: 700 }}>Create</span>
-        </Link> */}
         <Link href="/profile" className="flex items-center gap-[8px] no-underline">
           <div className="relative">
             <img

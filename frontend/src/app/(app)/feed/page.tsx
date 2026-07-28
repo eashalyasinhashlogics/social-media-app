@@ -2,28 +2,56 @@
 
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
-import { postsAPI, Post } from '@/lib/api'
+import { postsAPI, feedAPI, Post } from '@/lib/api'
 import { PostCard } from '@/components/PostCard'
 import { CreatePostForm } from '@/components/CreatePostForm'
+
+type FeedTab = 'all' | 'following'
 
 export default function FeedPage() {
   const { user } = useAuthStore()
 
+  const [activeTab, setActiveTab] = useState<FeedTab>('all')
   const [posts, setPosts] = useState<Post[]>([])
   const [postsLoading, setPostsLoading] = useState(true)
   const [postsError, setPostsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
+    let cancelled = false
     setPostsLoading(true)
-    postsAPI.listWithLikeState()
-      .then((data) => setPosts(data))
-      .catch(() => setPostsError('Failed to load feed'))
-      .finally(() => setPostsLoading(false))
-  }, [user])
+    setPostsError(null)
+
+    // listWithLikeState() already resolves to Post[]; getFollowingFeed()
+    // returns the raw axios response, so unwrap it to keep both branches
+    // the same shape.
+    const load =
+      activeTab === 'following'
+        ? feedAPI.getFollowingFeed().then((res) => res.data)
+        : postsAPI.listWithLikeState()
+
+    load
+      .then((data) => {
+        if (!cancelled) setPosts(data)
+      })
+      .catch(() => {
+        if (!cancelled) setPostsError('Failed to load feed')
+      })
+      .finally(() => {
+        if (!cancelled) setPostsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user, activeTab])
 
   const handlePostCreated = (post: Post) => {
-    setPosts((prev) => [post, ...prev])
+    // A brand-new post only belongs on "For You" until someone follows
+    // the author, so only prepend it when that's the active tab.
+    if (activeTab === 'all') {
+      setPosts((prev) => [post, ...prev])
+    }
   }
 
   const handlePostUpdated = (updated: Post) => {
@@ -43,9 +71,21 @@ export default function FeedPage() {
 
   if (!user) return null
 
+  const TAB_BASE = 'px-[16px] py-[8px] text-[13px] font-[600] rounded-[8px] cursor-pointer border-none bg-transparent text-[#64748b] hover:text-[#1a202c]'
+  const TAB_ACTIVE = 'px-[16px] py-[8px] text-[13px] font-[600] rounded-[8px] cursor-pointer border-none bg-[#EEF2FF] text-[#5B52E7]'
+
   return (
     <div className="max-w-[600px] mx-auto">
       <CreatePostForm onCreated={handlePostCreated} />
+
+      <div className="flex items-center gap-[4px] bg-white p-[4px] rounded-[12px] border border-[#e2e8f0] mb-[16px] w-fit">
+        <button className={activeTab === 'all' ? TAB_ACTIVE : TAB_BASE} onClick={() => setActiveTab('all')}>
+          For You
+        </button>
+        <button className={activeTab === 'following' ? TAB_ACTIVE : TAB_BASE} onClick={() => setActiveTab('following')}>
+          Following
+        </button>
+      </div>
 
       {postsLoading && (
         <div className="text-center text-[#64748b] text-[14px] py-[40px]">Loading feed...</div>
@@ -59,7 +99,9 @@ export default function FeedPage() {
 
       {!postsLoading && !postsError && posts.length === 0 && (
         <div className="text-center text-[#64748b] text-[14px] py-[40px]">
-          No posts yet. Be the first to post something!
+          {activeTab === 'following'
+            ? 'No posts yet. Follow people to see their posts here.'
+            : 'No posts yet. Be the first to post something!'}
         </div>
       )}
 
@@ -70,7 +112,7 @@ export default function FeedPage() {
           currentUserId={user.id}
           onUpdated={handlePostUpdated}
           onDeleted={handlePostDeleted}
-          onShared={(share) => setPosts((prev) => [share, ...prev])}
+          onShared={(share) => setPosts((prev) => (activeTab === 'all' ? [share, ...prev] : prev))}
         />
       ))}
     </div>
