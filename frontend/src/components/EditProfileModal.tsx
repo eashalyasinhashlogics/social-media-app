@@ -265,7 +265,7 @@ export function EditProfileModal({ profile, onClose, onSaved }: EditProfileModal
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex-1 py-[10px] text-[14px] font-[600] text-white bg-[#5B52E7] hover:bg-[#4C43D4] border-none rounded-[8px] cursor-pointer disabled:opacity-60"
+              className="flex-1 py-[10px] text-[14px] font-[600] text-[#ffffff] disabled:text-[#ffffff] bg-[#5B52E7] hover:bg-[#4C43D4] border-none rounded-[8px] cursor-pointer disabled:opacity-60"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>

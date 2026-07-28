@@ -263,24 +263,3 @@ class PostService:
             results.append(data)
 
         return results
-    # --- Feed: added by Milestone 3 Step 2 setup script ---
-    @staticmethod
-    def get_feed(db: Session, follower_id: uuid.UUID, following_ids: list, skip: int = 0, limit: int = 20):
-        """Posts authored by anyone the viewer follows, newest first.
-        Excludes archived/deleted posts the same way list_posts does.
-        Empty following_ids -> empty feed, no query needed."""
-        if not following_ids:
-            return []
-
-        return (
-            db.query(Post)
-            .filter(
-                Post.author_id.in_(following_ids),
-                Post.status == PostStatus.active,
-                Post.deleted_at.is_(None),
-            )
-            .order_by(Post.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
