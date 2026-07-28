@@ -4,7 +4,6 @@ import {
   isAuthRoute,
   getSpecialRoute,
   MIDDLEWARE_CONFIG,
-  MIDDLEWARE_MATCHER,
 } from '@/config/middleware-config'
 import {
   getTokenFromRequest,
@@ -57,6 +56,25 @@ export function proxy(request: NextRequest) {
   return NextResponse.next()
 }
 
+// Next.js statically parses this `config` export at build time without
+// executing the module graph, so `matcher` must be a literal array
+// written directly in this file - it cannot be a reference to an
+// imported constant like MIDDLEWARE_MATCHER, even though that constant
+// holds the exact same values at runtime. This is why the build failed.
+// Keep this list in sync with MIDDLEWARE_MATCHER in
+// @/config/middleware-config.ts manually if routes ever change.
 export const config = {
-  matcher: MIDDLEWARE_MATCHER,
-}
+  matcher: [
+    '/feed/:path*',
+    '/messages/:path*',
+    '/notifications/:path*',
+    '/communities/:path*',
+    '/user/:path*',
+    '/profile/:path*',
+    '/login',
+    '/register',
+    '/verify-email',
+    '/oauth/:path*',
+    '/',
+  ],
+} 

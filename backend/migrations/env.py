@@ -3,6 +3,8 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 import sys
 import os
+from app.models.post_like import PostLike
+from app.models.comment import Comment
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
@@ -13,6 +15,8 @@ from app.models.oauth import OAuthCredentials
 from app.models.user_profile import UserProfile
 from app.models.refresh_token import RefreshToken
 from app.models.user_session import UserSession
+from app.models.post import Post
+from app.models.media import Media
 from app.config import DATABASE_URL
 
 config = context.config

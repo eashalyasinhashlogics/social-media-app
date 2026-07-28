@@ -10,8 +10,10 @@ class UserProfile(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    display_name = Column(String(150), nullable=True)
     bio = Column(String(500), nullable=True)
-    profile_picture_id = Column(UUID(as_uuid=True), nullable=True)  # FK to media deferred to Week 2
+    profile_picture_id = Column(UUID(as_uuid=True), ForeignKey("media.id", ondelete="SET NULL"), nullable=True)
+    cover_photo_id = Column(UUID(as_uuid=True), ForeignKey("media.id", ondelete="SET NULL"), nullable=True)
     follower_count = Column(Integer, default=0, nullable=False)
     following_count = Column(Integer, default=0, nullable=False)
     post_count = Column(Integer, default=0, nullable=False)
