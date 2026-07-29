@@ -261,5 +261,51 @@ class PostService:
                         data["original_author_username"] = original_author.username
 
             results.append(data)
-
         return results
+
+    @staticmethod
+    def trending_hashtags(db: Session, limit: int = 5) -> list:
+        import re
+        from collections import Counter
+
+        rows = (
+            db.query(Post.content)
+            .filter(Post.status == PostStatus.active)
+            .order_by(Post.created_at.desc())
+            .limit(500)
+            .all()
+        )
+        counts: Counter = Counter()
+        for (content,) in rows:
+            for tag in re.findall(r"#(\w+)", content or ""):
+                counts[tag.lower()] += 1
+        return [{"tag": tag, "post_count": count} for tag, count in counts.most_common(limit)]
+
+    @staticmethod
+    def list_archived_posts(db: Session, user_id: uuid.UUID):
+        return (
+            db.query(Post)
+            .filter(Post.author_id == user_id, Post.status == PostStatus.archived, Post.deleted_at.is_(None))
+            .order_by(Post.created_at.desc())
+            .all()
+        )
+
+    @staticmethod
+    def get_feed(db: Session, viewer_id: uuid.UUID, following_ids: list, skip: int = 0, limit: int = 20):
+        """Posts authored by whoever `viewer_id` follows, newest first.
+        Mirrors list_posts' active/not-deleted filtering so the Following
+        tab shows the same kind of content the "For You" tab does."""
+        if not following_ids:
+            return []
+        return (
+            db.query(Post)
+            .filter(
+                Post.author_id.in_(following_ids),
+                Post.status == PostStatus.active,
+                Post.deleted_at.is_(None),
+            )
+            .order_by(Post.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )

@@ -4,7 +4,9 @@ from fastapi import HTTPException, status
 from typing import List, Optional
 from datetime import datetime
 import uuid
-
+from app.models.message_reaction import MessageReaction
+from app.models.media import Media
+from app.core.exceptions import MessageNotFoundException, NotMessageOwnerException, EmptyMessageException, AttachmentNotFoundException
 from app.models.conversation import Conversation
 from app.models.conversation_participant import ConversationParticipant
 from app.models.message import Message
@@ -12,7 +14,9 @@ from app.models.message_read import MessageRead
 from app.models.user import User
 from app.db.enums import ConversationType
 from app.core.exceptions import UserNotFoundException
-
+from datetime import datetime
+from app.models.message_reaction import MessageReaction
+from app.core.exceptions import MessageNotFoundException, NotMessageOwnerException
 
 class CannotMessageSelfException(HTTPException):
     def __init__(self):
@@ -123,24 +127,53 @@ class ConversationService:
         )
         return ConversationService.to_response_dict_batch(db, conversations, viewer_id=user_id)
 
+
     @staticmethod
-    def send_message(db: Session, conversation_id: uuid.UUID, sender_id: uuid.UUID, content: str) -> Message:
-        ConversationService._get_conversation_or_404(db, conversation_id)
+    def send_message(
+        db: Session, conversation_id: uuid.UUID, sender_id: uuid.UUID, content: str, attachment_ids: List[uuid.UUID] = None
+    ) -> dict:
+        attachment_ids = attachment_ids or []
+        conversation = ConversationService._get_conversation_or_404(db, conversation_id)
         if not ConversationService.is_participant(db, conversation_id, sender_id):
             raise NotConversationParticipantException()
+        if not content and not attachment_ids:
+            raise EmptyMessageException()
 
         message = Message(conversation_id=conversation_id, sender_id=sender_id, content=content)
         db.add(message)
-        db.flush()  # need message.id/created_at before stamping the conversation
+        db.flush()  # get message.id before linking attachments below
 
-        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if attachment_ids:
+            # Only link attachments this same user uploaded and that aren't
+            # already attached to another message - prevents one upload
+            # being replayed onto multiple messages.
+            attachments = (
+                db.query(Media)
+                .filter(
+                    Media.id.in_(attachment_ids),
+                    Media.uploader_id == sender_id,
+                    Media.message_id.is_(None),
+                )
+                .all()
+            )
+            if len(attachments) != len(set(attachment_ids)):
+                raise AttachmentNotFoundException()
+            for media in attachments:
+                media.message_id = message.id
+                db.add(media)
+
+        # Keep the conversation's preview in sync - nothing else in the
+        # app ever writes these columns, so without this every
+        # conversation's last_message stays permanently NULL and the list
+        # page shows "No messages yet" forever, no matter how many
+        # messages actually exist.
         conversation.last_message_id = message.id
         conversation.last_message_at = message.created_at
         db.add(conversation)
 
         db.commit()
         db.refresh(message)
-        return message
+        return ConversationService.to_message_dict(db, message)
 
     @staticmethod
     def list_messages(db: Session, conversation_id: uuid.UUID, user_id: uuid.UUID, skip: int = 0, limit: int = 50) -> list:
@@ -148,14 +181,150 @@ class ConversationService:
         if not ConversationService.is_participant(db, conversation_id, user_id):
             raise NotConversationParticipantException()
 
-        return (
+        messages = (
             db.query(Message)
             .filter(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.desc())
+            .order_by(Message.created_at.asc())
             .offset(skip)
             .limit(limit)
             .all()
         )
+        return ConversationService.to_message_dict_batch(db, messages)
+
+    # ── Message-level actions ───────────────────────────────────────
+
+    @staticmethod
+    def _get_message_or_404(db: Session, conversation_id: uuid.UUID, message_id: uuid.UUID) -> Message:
+        message = (
+            db.query(Message)
+            .filter(Message.id == message_id, Message.conversation_id == conversation_id)
+            .first()
+        )
+        if not message:
+            raise MessageNotFoundException()
+        return message
+
+    @staticmethod
+    def _reactions_for_messages(db: Session, message_ids: List[uuid.UUID]) -> dict:
+        if not message_ids:
+            return {}
+        rows = db.query(MessageReaction).filter(MessageReaction.message_id.in_(message_ids)).all()
+        grouped: dict = {}
+        for row in rows:
+            grouped.setdefault(row.message_id, {}).setdefault(row.emoji, []).append(row.user_id)
+        return {
+            mid: [{"emoji": emoji, "user_ids": user_ids} for emoji, user_ids in emojis.items()]
+            for mid, emojis in grouped.items()
+        }
+
+    @staticmethod
+    def to_message_dict(db: Session, message: Message) -> dict:
+        reactions = ConversationService._reactions_for_messages(db, [message.id]).get(message.id, [])
+        attachments = (
+            db.query(Media)
+            .filter(Media.message_id == message.id)
+            .order_by(Media.created_at.asc())
+            .all()
+        )
+        return {
+            "id": message.id,
+            "conversation_id": message.conversation_id,
+            "sender_id": message.sender_id,
+            "content": message.content,
+            "created_at": message.created_at,
+            "updated_at": message.updated_at,
+            "reactions": reactions,
+            "attachments": attachments,
+        }
+
+    @staticmethod
+    def to_message_dict_batch(db: Session, messages: List[Message]) -> list:
+        reactions_by_message = ConversationService._reactions_for_messages(db, [m.id for m in messages])
+
+        attachments_by_message: dict = {}
+        if messages:
+            for media in (
+                db.query(Media)
+                .filter(Media.message_id.in_([m.id for m in messages]))
+                .order_by(Media.created_at.asc())
+                .all()
+            ):
+                attachments_by_message.setdefault(media.message_id, []).append(media)
+
+        return [
+            {
+                "id": m.id,
+                "conversation_id": m.conversation_id,
+                "sender_id": m.sender_id,
+                "content": m.content,
+                "created_at": m.created_at,
+                "updated_at": m.updated_at,
+                "reactions": reactions_by_message.get(m.id, []),
+                "attachments": attachments_by_message.get(m.id, []),
+            }
+            for m in messages
+        ]
+
+    @staticmethod
+    def update_message(db: Session, conversation_id: uuid.UUID, message_id: uuid.UUID, user_id: uuid.UUID, content: str) -> dict:
+        message = ConversationService._get_message_or_404(db, conversation_id, message_id)
+        if message.sender_id != user_id:
+            raise NotMessageOwnerException()
+        message.content = content
+        message.updated_at = datetime.utcnow()
+        db.add(message)
+        db.commit()
+        db.refresh(message)
+        return ConversationService.to_message_dict(db, message)
+
+    @staticmethod
+    def delete_message(db: Session, conversation_id: uuid.UUID, message_id: uuid.UUID, user_id: uuid.UUID) -> None:
+        message = ConversationService._get_message_or_404(db, conversation_id, message_id)
+        if message.sender_id != user_id:
+            raise NotMessageOwnerException()
+
+        conversation = ConversationService._get_conversation_or_404(db, conversation_id)
+        was_last_message = conversation.last_message_id == message.id
+        db.delete(message)
+        db.flush()
+
+        if was_last_message:
+            # The FK's ON DELETE SET NULL already clears last_message_id at
+            # the DB level, but last_message_at is a plain column with no
+            # such constraint - left alone it would keep showing the
+            # deleted message's timestamp on the conversation list even
+            # though the preview text reverts to "No messages yet". Fall
+            # back to the new most recent remaining message, if any.
+            new_last_message = (
+                db.query(Message)
+                .filter(Message.conversation_id == conversation_id)
+                .order_by(Message.created_at.desc())
+                .first()
+            )
+            conversation.last_message_id = new_last_message.id if new_last_message else None
+            conversation.last_message_at = new_last_message.created_at if new_last_message else None
+            db.add(conversation)
+
+        db.commit()
+        
+    @staticmethod
+    def toggle_reaction(db: Session, conversation_id: uuid.UUID, message_id: uuid.UUID, user_id: uuid.UUID, emoji: str) -> dict:
+        message = ConversationService._get_message_or_404(db, conversation_id, message_id)
+        if not ConversationService.is_participant(db, conversation_id, user_id):
+            raise NotConversationParticipantException()
+
+        existing = (
+            db.query(MessageReaction)
+            .filter(MessageReaction.message_id == message_id, MessageReaction.user_id == user_id, MessageReaction.emoji == emoji)
+            .first()
+        )
+        if existing:
+            db.delete(existing)
+        else:
+            db.add(MessageReaction(message_id=message_id, user_id=user_id, emoji=emoji))
+        db.commit()
+        db.refresh(message)
+        return ConversationService.to_message_dict(db, message)
 
     # ── Response shaping (mirrors PostService's batched approach) ──────
 

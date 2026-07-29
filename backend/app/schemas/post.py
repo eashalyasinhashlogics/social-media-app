@@ -56,3 +56,7 @@ class PostResponse(UTCTimestampMixin, BaseModel):
 class LikeToggleResponse(BaseModel):
     liked: bool
     like_count: int
+
+class TrendingHashtag(BaseModel):
+    tag: str
+    post_count: int

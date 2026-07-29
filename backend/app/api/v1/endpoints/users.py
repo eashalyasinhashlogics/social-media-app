@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from typing import Optional
 import uuid
-
+from app.schemas.user import UserResponse, UserSearchResult
 from app.core.dependencies import get_db, get_current_user, get_current_user_optional
 from app.models.user import User
 from app.schemas.user import UserResponse
@@ -97,3 +97,24 @@ def list_followers(user_id: uuid.UUID, db: Session = Depends(get_db)):
 @router.get("/{user_id}/following", response_model=List[FollowerUser])
 def list_following(user_id: uuid.UUID, db: Session = Depends(get_db)):
     return FollowService.list_following(db, user_id)
+
+@router.get("/search/results", response_model=List[UserSearchResult])
+def search_users(
+    q: str = "",
+    skip: int = 0,
+    limit: int = 20,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    viewer_id = current_user.id if current_user else None
+    return UserService.search_users(db, q, viewer_id, skip, limit)
+
+
+@router.get("/featured/creators", response_model=List[UserSearchResult])
+def featured_creators(
+    limit: int = 8,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
+    viewer_id = current_user.id if current_user else None
+    return UserService.list_featured(db, viewer_id, limit)

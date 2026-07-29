@@ -8,7 +8,7 @@ from app.models.user_profile import UserProfile
 from app.models.media import Media
 from app.core.exceptions import UserNotFoundException
 from fastapi import HTTPException, status
-
+from app.services.notification_service import NotificationService
 
 class CannotFollowSelfException(HTTPException):
     def __init__(self):
@@ -69,6 +69,8 @@ class FollowService:
         db.commit()
         db.refresh(following_profile)
         db.refresh(follower_profile)
+
+        NotificationService.notify_follow(db, following_id, follower_id)
 
         return {
             "following": True,

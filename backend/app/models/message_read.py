@@ -1,6 +1,6 @@
 from sqlalchemy import Column, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 import uuid
 from datetime import datetime
 from app.db.base import Base
@@ -17,8 +17,5 @@ class MessageRead(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     read_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    message = relationship("Message", backref="reads")
+    message = relationship("Message", backref=backref("reads", passive_deletes=True))
     user = relationship("User", backref="message_reads")
-
-    def __repr__(self):
-        return f"<MessageRead(message_id={self.message_id}, user_id={self.user_id})>"

@@ -3,7 +3,7 @@ from sqlalchemy import or_, and_
 from fastapi import HTTPException, status
 from typing import List
 import uuid
-
+from app.services.notification_service import NotificationService
 from app.models.friend_request import FriendRequest
 from app.models.friendship import Friendship
 from app.models.user import User
@@ -113,6 +113,8 @@ class FriendService:
         db.add(request)
         db.commit()
         db.refresh(request)
+        NotificationService.notify_friend_request(db, to_user_id, from_user_id, request.id)
+
         return request
 
     @staticmethod
@@ -138,6 +140,7 @@ class FriendService:
 
         db.commit()
         db.refresh(request)
+        NotificationService.notify_friend_request(db, to_user_id, from_user_id, request.id)
         return request
 
     @staticmethod

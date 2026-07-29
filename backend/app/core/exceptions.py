@@ -76,3 +76,29 @@ class NotPostOwnerException(HTTPException):
 class ArchivedPostShareException(HTTPException):
     def __init__(self):
         super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail="Archived posts can't be shared")
+
+class MessageNotFoundException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+
+
+class NotMessageOwnerException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN, detail="You can only modify your own messages")
+
+class MessageNotFoundException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_404_NOT_FOUND, detail="Message not found")
+
+
+class EmptyMessageException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=status.HTTP_400_BAD_REQUEST, detail="Message must have content or an attachment")
+
+
+class AttachmentNotFoundException(HTTPException):
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="One or more attachments were not found or were already sent with another message",
+        )

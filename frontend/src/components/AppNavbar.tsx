@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { useProfile } from '@/context/ProfileContext'
-import { resolveMediaUrl, conversationsAPI, friendsAPI } from '@/lib/api'
+import { resolveMediaUrl, conversationsAPI, notificationsAPI } from '@/lib/api'
 
 interface Tab {
   key: string
@@ -41,7 +41,7 @@ export function AppNavbar() {
   const { user, logout } = useAuthStore()
   const { ownProfile } = useProfile()
   const [unreadTotal, setUnreadTotal] = useState(0)
-  const [incomingRequestCount, setIncomingRequestCount] = useState(0)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
 
   // Reuses the same conversationsAPI.list() call the Messages page
   // already makes rather than adding a new endpoint - good enough for
@@ -74,10 +74,10 @@ export function AppNavbar() {
     let cancelled = false
 
     const poll = () => {
-      friendsAPI
-        .listIncoming()
+      notificationsAPI
+        .unreadCount()
         .then((res) => {
-          if (!cancelled) setIncomingRequestCount(res.data.length)
+          if (!cancelled) setUnreadNotifications(res.data.unread_count)
         })
         .catch(() => {})
     }
@@ -115,8 +115,8 @@ export function AppNavbar() {
           const badge =
             tab.key === 'messages' && unreadTotal > 0
               ? String(unreadTotal > 99 ? '99+' : unreadTotal)
-              : tab.key === 'notifications' && incomingRequestCount > 0
-              ? String(incomingRequestCount)
+              : tab.key === 'notifications' && unreadNotifications > 0
+              ? String(unreadNotifications > 99 ? '99+' : unreadNotifications)
               : tab.badge
 
           return (

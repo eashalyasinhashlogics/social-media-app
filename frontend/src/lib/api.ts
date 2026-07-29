@@ -98,6 +98,17 @@ export function resolveMediaUrl(url: string | null | undefined): string {
   return `${API_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
+// ─── Dates ──────────────────────────────────────────────
+// The backend serializes created_at/updated_at with an explicit UTC
+// offset in the common case (e.g. "...+00:00"), which `new Date(...)`
+// parses correctly on its own. This is defense-in-depth for any
+// timestamp that arrives without one (e.g. an older cached response) -
+// treat it as UTC instead of the browser's local timezone.
+export function parseServerDate(dateString: string): Date {
+  const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(dateString)
+  return new Date(hasOffset ? dateString : `${dateString}Z`)
+}
+
 // ─── Auth ───────────────────────────────────────────────
 export const authAPI = {
   register: (email: string, username: string, password: string) =>
@@ -346,12 +357,26 @@ export const friendsAPI = {
   unfriend: (userId: string) => api.delete(`/friends/${userId}`),
 }
 // ─── Conversations / Chat ───────────────────────────────
+export interface MessageReaction {
+  emoji: string
+  user_ids: string[]
+}
+export interface MessageAttachment {
+  id: string
+  url: string
+  media_type: 'image' | 'video' | 'document'
+  file_name?: string | null
+  file_size?: number | null
+}
 export interface Message {
   id: string
   conversation_id: string
   sender_id: string
   content: string
   created_at: string
+  updated_at?: string | null
+  reactions?: MessageReaction[]
+  attachments?: MessageAttachment[]
 }
 export interface Conversation {
   id: string
@@ -368,10 +393,81 @@ export const conversationsAPI = {
   list: (skip = 0, limit = 20) => api.get<Conversation[]>('/conversations', { params: { skip, limit } }),
   messages: (conversationId: string, skip = 0, limit = 50) =>
     api.get<Message[]>(`/conversations/${conversationId}/messages`, { params: { skip, limit } }),
-  send: (conversationId: string, content: string) =>
-    api.post<Message>(`/conversations/${conversationId}/messages`, { content }),
+  send: (conversationId: string, content: string, attachmentIds: string[] = []) =>
+    api.post<Message>(`/conversations/${conversationId}/messages`, {
+      content,
+      attachment_ids: attachmentIds,
+    }),
   markRead: (conversationId: string) =>
     api.post<{ marked_read: number }>(`/conversations/${conversationId}/read`),
   unreadCount: (conversationId: string) =>
     api.get<{ conversation_id: string; unread_count: number }>(`/conversations/${conversationId}/unread-count`),
+
+  // ── Message-level actions (edit / delete / react) ──
+  // Mirrors the postsAPI.update/delete/toggleLike conventions above -
+  // PATCH to edit, DELETE to remove, POST to toggle a reaction on/off.
+  updateMessage: (conversationId: string, messageId: string, content: string) =>
+    api.patch<Message>(`/conversations/${conversationId}/messages/${messageId}`, { content }),
+  deleteMessage: (conversationId: string, messageId: string) =>
+    api.delete(`/conversations/${conversationId}/messages/${messageId}`),
+  // Toggle semantics like postsAPI.toggleLike: reacting again with the
+  // same emoji removes it. Returns the full message so the caller always
+  // has the authoritative reactions list.
+  toggleReaction: (conversationId: string, messageId: string, emoji: string) =>
+    api.post<Message>(`/conversations/${conversationId}/messages/${messageId}/reactions`, { emoji }),
+
+  uploadAttachment: (conversationId: string, file: File, onProgress?: (pct: number) => void) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<MessageAttachment>(`/media/message-attachment/${conversationId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+      },
+    })
+  },
+}
+
+// ─── Notifications ────────────────────────────────────
+export interface NotificationActor {
+  id: string
+  username: string
+  avatar_url: string | null
+}
+export interface Notification {
+  id: string
+  type: 'like' | 'comment' | 'reply' | 'friend_request' | 'friend_accept' | 'follow'
+  actor: NotificationActor | null
+  post_id: string | null
+  comment_id: string | null
+  post_preview: string | null
+  comment_preview: string | null
+  friend_request_id: string | null
+  is_read: boolean
+  created_at: string
+}
+export const notificationsAPI = {
+  list: (skip = 0, limit = 30) => api.get<Notification[]>('/notifications', { params: { skip, limit } }),
+  unreadCount: () => api.get<{ unread_count: number }>('/notifications/unread-count'),
+  markRead: (notificationId: string) => api.post(`/notifications/${notificationId}/read`),
+  markAllRead: () => api.post<{ marked_read: number }>('/notifications/read-all'),
+}
+// ─── Explore ──────────────────────────────────────────
+export interface UserSearchResult {
+  id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+  follower_count: number
+  is_following: boolean
+}
+export interface TrendingHashtag {
+  tag: string
+  post_count: number
+}
+export const exploreAPI = {
+  search: (q: string, skip = 0, limit = 20) =>
+    api.get<UserSearchResult[]>('/users/search/results', { params: { q, skip, limit } }),
+  featuredCreators: (limit = 8) => api.get<UserSearchResult[]>('/users/featured/creators', { params: { limit } }),
+  trendingHashtags: (limit = 5) => api.get<TrendingHashtag[]>('/posts/trending/hashtags', { params: { limit } }),
 }

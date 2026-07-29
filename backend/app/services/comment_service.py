@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime
 import uuid
-
+from app.services.notification_service import NotificationService
 from app.models.comment import Comment
 from app.models.user import User
 from app.services.post_service import PostService
@@ -19,6 +19,7 @@ class CommentService:
     def create_comment(db: Session, post_id: uuid.UUID, user_id: uuid.UUID, comment_create: CommentCreate) -> Comment:
         post = PostService.get_post_or_404(db, post_id)
 
+        parent = None
         if comment_create.parent_comment_id:
             parent = (
                 db.query(Comment)
@@ -46,6 +47,12 @@ class CommentService:
 
         db.commit()
         db.refresh(comment)
+
+        if parent:
+            NotificationService.notify_reply(db, parent.user_id, user_id, post_id, comment.id)
+        else:
+            NotificationService.notify_comment(db, post.author_id, user_id, post_id, comment.id)
+
         return comment
 
     @staticmethod
