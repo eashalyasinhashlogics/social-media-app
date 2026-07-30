@@ -61,6 +61,13 @@ function messageFor(n: Notification): string {
 // now instead of a post detail page. Swap the `like`/`comment`/`reply`
 // branch below to `/posts/${n.post_id}` (or whatever your real post
 // route ends up being) once that page exists.
+// The backend rejects accept/reject calls on a friend request that's
+// already been actioned (e.g. resolved via another notification, or in
+// another tab). That's not really an "error" from the user's point of
+// view - the request just isn't pending anymore - so we detect it and
+// show a neutral state instead of a red error banner.
+const ALREADY_RESOLVED_HINT = /already.*(resolved|responded|accepted|rejected|processed)/i
+
 function destinationFor(n: Notification): string | null {
   switch (n.type) {
     case 'like':
@@ -86,6 +93,12 @@ export default function NotificationsPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [followedIds, setFollowedIds] = useState<Set<string>>(new Set())
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set())
+  const [rejectedIds, setRejectedIds] = useState<Set<string>>(new Set())
+  // Set when the backend reports the underlying friend request was already
+  // accepted/rejected elsewhere (stale notification) — we don't know which
+  // way it went, so we just stop showing action buttons instead of erroring.
+  const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set())
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -122,9 +135,14 @@ export default function NotificationsPage() {
     setActionError(null)
     try {
       await friendsAPI.accept(n.friend_request_id)
-      setItems((prev) => prev.filter((i) => i.id !== n.id))
+      setAcceptedIds((prev) => new Set(prev).add(n.id))
     } catch (err: any) {
-      setActionError(extractErrorMessage(err, 'Could not accept request.'))
+      const message = extractErrorMessage(err, 'Could not accept request.')
+      if (ALREADY_RESOLVED_HINT.test(message)) {
+        setResolvedIds((prev) => new Set(prev).add(n.id))
+      } else {
+        setActionError(message)
+      }
     } finally {
       setBusyId(null)
     }
@@ -137,9 +155,14 @@ export default function NotificationsPage() {
     setActionError(null)
     try {
       await friendsAPI.reject(n.friend_request_id)
-      setItems((prev) => prev.filter((i) => i.id !== n.id))
+      setRejectedIds((prev) => new Set(prev).add(n.id))
     } catch (err: any) {
-      setActionError(extractErrorMessage(err, 'Could not reject request.'))
+      const message = extractErrorMessage(err, 'Could not reject request.')
+      if (ALREADY_RESOLVED_HINT.test(message)) {
+        setResolvedIds((prev) => new Set(prev).add(n.id))
+      } else {
+        setActionError(message)
+      }
     } finally {
       setBusyId(null)
     }
@@ -198,6 +221,9 @@ export default function NotificationsPage() {
               const badge = TYPE_ICON[n.type]
               const actorName = n.actor?.username || 'Someone'
               const alreadyFollowed = n.actor ? followedIds.has(n.actor.id) : false
+              const isAccepted = acceptedIds.has(n.id)
+              const isRejected = rejectedIds.has(n.id)
+              const isResolvedElsewhere = resolvedIds.has(n.id)
               const clickable = destinationFor(n) !== null
 
               return (
@@ -268,22 +294,36 @@ export default function NotificationsPage() {
                       </button>
                     )}
                     {n.type === 'friend_request' && n.friend_request_id && (
-                      <>
-                        <button
-                          onClick={(e) => handleAccept(e, n)}
-                          disabled={busyId === n.id}
-                          className="px-[14px] py-[7px] text-[13px] font-[600] text-white bg-[#5B52E7] border-none rounded-[8px] cursor-pointer hover:bg-[#4C43D4] disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {busyId === n.id ? '...' : 'Accept'}
-                        </button>
-                        <button
-                          onClick={(e) => handleReject(e, n)}
-                          disabled={busyId === n.id}
-                          className="px-[14px] py-[7px] text-[13px] font-[600] text-[#374151] bg-white border border-[#e2e8f0] rounded-[8px] cursor-pointer hover:bg-[#f8fafc] disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          Reject
-                        </button>
-                      </>
+                      isAccepted ? (
+                        <span className="px-[14px] py-[7px] text-[13px] font-[600] text-[#10B981] flex items-center gap-[6px]">
+                          <i className="fa-solid fa-check"></i> Accepted
+                        </span>
+                      ) : isRejected ? (
+                        <span className="px-[14px] py-[7px] text-[13px] font-[600] text-[#94a3b8] flex items-center gap-[6px]">
+                          Declined
+                        </span>
+                      ) : isResolvedElsewhere ? (
+                        <span className="px-[14px] py-[7px] text-[13px] font-[600] text-[#94a3b8] flex items-center gap-[6px]">
+                          Already resolved
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => handleAccept(e, n)}
+                            disabled={busyId === n.id}
+                            className="px-[14px] py-[7px] text-[13px] font-[600] text-white bg-[#5B52E7] border-none rounded-[8px] cursor-pointer hover:bg-[#4C43D4] disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {busyId === n.id ? '...' : 'Accept'}
+                          </button>
+                          <button
+                            onClick={(e) => handleReject(e, n)}
+                            disabled={busyId === n.id}
+                            className="px-[14px] py-[7px] text-[13px] font-[600] text-[#374151] bg-white border border-[#e2e8f0] rounded-[8px] cursor-pointer hover:bg-[#f8fafc] disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )
                     )}
                     <span className="text-[12px] text-[#94a3b8] whitespace-nowrap">{timeAgo(n.created_at)}</span>
                     {!n.is_read && <div className="w-[8px] h-[8px] bg-cyan-500 rounded-full"></div>}
