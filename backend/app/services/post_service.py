@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+﻿from sqlalchemy.orm import Session
 from datetime import datetime
 from typing import Optional
 from collections import defaultdict
@@ -112,11 +112,6 @@ class PostService:
     def share_post(db: Session, original_post_id: uuid.UUID, user_id: uuid.UUID, share_create) -> Post:
         original = PostService.get_post_or_404(db, original_post_id)
 
-        # Archived posts are hidden from the owner's own feed/profile view
-        # by choice - sharing one would republish it into other people's
-        # feeds behind the owner's back, which defeats the point of
-        # archiving. Blocked here (not just in the UI) so the rule holds
-        # no matter which client calls the API.
         if original.status == PostStatus.archived:
             raise ArchivedPostShareException()
 
@@ -140,11 +135,6 @@ class PostService:
         return share
 
     # ── Response shaping ──────────────────────────────────────────────
-    # `to_response_dict` is a thin wrapper around the batched version so
-    # every call site (single-post or list) goes through the same shaping
-    # logic and stays consistent. Only `to_response_dict_batch` actually
-    # talks to the database; use it directly whenever you have more than
-    # one post, or you're back to the N+1 pattern this replaced.
 
     @staticmethod
     def to_response_dict(db: Session, post: Post, liked_post_ids: Optional[set] = None) -> dict:
@@ -152,28 +142,17 @@ class PostService:
 
     @staticmethod
     def to_response_dict_batch(db: Session, posts: list, liked_post_ids: Optional[set] = None) -> list:
-        """Builds response dicts for a list of posts using a fixed number
-        of batched queries (author lookup, media lookup, original-post
-        lookup, original-author lookup) instead of one round trip per
-        post per relation. Every endpoint that returns one or many posts
-        should go through here so author info, media, share attribution,
-        and per-user like state stay consistent no matter which endpoint
-        the posts came from."""
         if not posts:
             return []
 
         liked_post_ids = liked_post_ids or set()
         post_ids = [p.id for p in posts]
 
-        # 1 query: authors of the posts themselves
         author_ids = {p.author_id for p in posts}
         authors_by_id = {
             u.id: u for u in db.query(User).filter(User.id.in_(author_ids)).all()
         }
 
-        # 2 queries: author avatars, via UserProfile.profile_picture_id -> Media.url.
-        # Mirrors ProfileService._media_url, but batched across every author on the
-        # page instead of one row at a time.
         profiles_by_user_id = {
             p.user_id: p
             for p in db.query(UserProfile).filter(UserProfile.user_id.in_(author_ids)).all()
@@ -194,18 +173,10 @@ class PostService:
                 return None
             return avatar_url_by_media_id.get(profile.profile_picture_id)
 
-        # 1 query: all media attached to any of these posts
         media_by_post_id = defaultdict(list)
         for m in db.query(Media).filter(Media.post_id.in_(post_ids)).all():
             media_by_post_id[m.post_id].append(m)
 
-        # 1 query (+1 for their authors): shared/original posts.
-        # Only pull in originals that are still `active` - an archived or
-        # soft-deleted original must not leak its content into a share
-        # that shows up in other people's feeds. `data["original_content"]`
-        # stays None for those (same as when the original row is gone
-        # entirely), and the frontend already renders that as
-        # "Original post unavailable".
         original_ids = {p.original_post_id for p in posts if p.original_post_id}
         originals_by_id = {}
         original_authors_by_id = {}
@@ -282,19 +253,7 @@ class PostService:
         return [{"tag": tag, "post_count": count} for tag, count in counts.most_common(limit)]
 
     @staticmethod
-    def list_archived_posts(db: Session, user_id: uuid.UUID):
-        return (
-            db.query(Post)
-            .filter(Post.author_id == user_id, Post.status == PostStatus.archived, Post.deleted_at.is_(None))
-            .order_by(Post.created_at.desc())
-            .all()
-        )
-
-    @staticmethod
     def get_feed(db: Session, viewer_id: uuid.UUID, following_ids: list, skip: int = 0, limit: int = 20):
-        """Posts authored by whoever `viewer_id` follows, newest first.
-        Mirrors list_posts' active/not-deleted filtering so the Following
-        tab shows the same kind of content the "For You" tab does."""
         if not following_ids:
             return []
         return (
@@ -309,3 +268,61 @@ class PostService:
             .limit(limit)
             .all()
         )
+
+    # ── Admin operations (Slice 5) ────────────────────────────────────
+    # These bypass the ownership check in _get_owned_post_or_404 on
+    # purpose - only reachable via routes gated by get_current_admin.
+    # The regular /api/v1/posts/{id} route and its ownership check are
+    # untouched.
+
+    @staticmethod
+    def admin_get_post_or_404(db: Session, post_id: uuid.UUID) -> Post:
+        """Unlike get_post_or_404, this doesn't filter out soft-deleted
+        posts - admins need to be able to see what was deleted."""
+        post = db.query(Post).filter(Post.id == post_id).first()
+        if not post:
+            raise PostNotFoundException()
+        return post
+
+    @staticmethod
+    def admin_list_posts(
+        db: Session,
+        skip: int = 0,
+        limit: int = 20,
+        status_filter: Optional[PostStatus] = None,
+        author_id: Optional[uuid.UUID] = None,
+    ):
+        query = db.query(Post)
+        if status_filter is not None:
+            query = query.filter(Post.status == status_filter)
+        if author_id is not None:
+            query = query.filter(Post.author_id == author_id)
+        total = query.count()
+        posts = query.order_by(Post.created_at.desc()).offset(skip).limit(limit).all()
+        return total, posts
+
+    @staticmethod
+    def admin_update_post(db: Session, post_id: uuid.UUID, post_update: PostUpdate) -> Post:
+        post = PostService.admin_get_post_or_404(db, post_id)
+        post.content = post_update.content
+        db.add(post)
+        db.commit()
+        db.refresh(post)
+        return post
+
+    @staticmethod
+    def admin_delete_post(db: Session, post_id: uuid.UUID) -> Post:
+        post = PostService.admin_get_post_or_404(db, post_id)
+        if post.status != PostStatus.deleted:
+            post.status = PostStatus.deleted
+            post.deleted_at = datetime.utcnow()
+            db.add(post)
+
+            profile = db.query(UserProfile).filter(UserProfile.user_id == post.author_id).first()
+            if profile and profile.post_count > 0:
+                profile.post_count -= 1
+                db.add(profile)
+
+            db.commit()
+        db.refresh(post)
+        return post

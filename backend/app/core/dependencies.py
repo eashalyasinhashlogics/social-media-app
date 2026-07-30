@@ -5,6 +5,8 @@ from app.db.database import SessionLocal
 from app.models.user import User
 from app.core.security import decode_token
 from app.config import ACCESS_TOKEN_COOKIE_NAME
+from app.db.enums import UserStatus
+from app.core.exceptions import UserBlockedException
 from jose import JWTError
 from typing import Optional
 
@@ -52,6 +54,13 @@ async def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    # Slice 1: a token can still be valid (15 min lifetime) after an admin
+    # blocks the account. Reject here so a blocked user can't post, comment,
+    # like, etc. using a token issued before the block.
+    if user.status != UserStatus.active:
+        raise UserBlockedException(user.status.value)
+
     return user
 
 async def get_current_user_optional(
