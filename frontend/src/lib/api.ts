@@ -403,16 +403,10 @@ export const conversationsAPI = {
   unreadCount: (conversationId: string) =>
     api.get<{ conversation_id: string; unread_count: number }>(`/conversations/${conversationId}/unread-count`),
 
-  // ── Message-level actions (edit / delete / react) ──
-  // Mirrors the postsAPI.update/delete/toggleLike conventions above -
-  // PATCH to edit, DELETE to remove, POST to toggle a reaction on/off.
   updateMessage: (conversationId: string, messageId: string, content: string) =>
     api.patch<Message>(`/conversations/${conversationId}/messages/${messageId}`, { content }),
   deleteMessage: (conversationId: string, messageId: string) =>
     api.delete(`/conversations/${conversationId}/messages/${messageId}`),
-  // Toggle semantics like postsAPI.toggleLike: reacting again with the
-  // same emoji removes it. Returns the full message so the caller always
-  // has the authoritative reactions list.
   toggleReaction: (conversationId: string, messageId: string, emoji: string) =>
     api.post<Message>(`/conversations/${conversationId}/messages/${messageId}/reactions`, { emoji }),
 
