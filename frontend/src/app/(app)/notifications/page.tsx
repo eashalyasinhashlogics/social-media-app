@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
+import { useProfile } from '@/context/ProfileContext'
 import {
   notificationsAPI,
   friendsAPI,
@@ -37,7 +38,10 @@ function timeAgo(dateString: string): string {
   return `${days}d`
 }
 
-function messageFor(n: Notification): string {
+function messageFor(n: Notification, overrideStatus?: 'accepted' | 'rejected'): string {
+  if (n.type === 'friend_request' && overrideStatus === 'accepted') return 'Friend request accepted'
+  if (n.type === 'friend_request' && overrideStatus === 'rejected') return 'Friend request rejected'
+
   switch (n.type) {
     case 'like':
       return 'liked your recent post'
@@ -85,6 +89,7 @@ function destinationFor(n: Notification): string | null {
 
 export default function NotificationsPage() {
   const { user } = useAuthStore()
+  const { setOwnProfile } = useProfile()
   const router = useRouter()
 
   const [items, setItems] = useState<Notification[]>([])
@@ -106,6 +111,40 @@ export default function NotificationsPage() {
     try {
       const res = await notificationsAPI.list(0, 50)
       setItems(res.data)
+
+      // A friend_request notification's own type never changes once the
+      // request is actioned, so on a fresh page load we reconcile against
+      // the current friend-request/friendship state to keep showing
+      // "Accepted"/"Rejected" instead of reverting to Accept/Reject
+      // buttons for a request that isn't pending anymore.
+      const requestNotifs = res.data.filter((n) => n.type === 'friend_request' && n.friend_request_id)
+      if (requestNotifs.length > 0) {
+        try {
+          const [incomingRes, friendsRes] = await Promise.all([
+            friendsAPI.listIncoming(),
+            friendsAPI.listFriends(),
+          ])
+          const stillPending = new Set(
+            incomingRes.data.filter((r) => r.status === 'pending').map((r) => r.id)
+          )
+          const friendIds = new Set(friendsRes.data.map((f) => f.friend.id))
+
+          const nextAccepted = new Set<string>()
+          const nextRejected = new Set<string>()
+          for (const n of requestNotifs) {
+            if (stillPending.has(n.friend_request_id!)) continue
+            if (n.actor && friendIds.has(n.actor.id)) {
+              nextAccepted.add(n.id)
+            } else {
+              nextRejected.add(n.id)
+            }
+          }
+          if (nextAccepted.size > 0) setAcceptedIds(nextAccepted)
+          if (nextRejected.size > 0) setRejectedIds(nextRejected)
+        } catch {
+          // Non-fatal - falls back to showing Accept/Reject buttons.
+        }
+      }
     } catch (err: any) {
       setError(extractErrorMessage(err, 'Failed to load notifications.'))
     } finally {
@@ -136,6 +175,23 @@ export default function NotificationsPage() {
     try {
       await friendsAPI.accept(n.friend_request_id)
       setAcceptedIds((prev) => new Set(prev).add(n.id))
+      
+      // Becoming friends auto-follows both users on the backend, so update
+      // the frontend state to match right away instead of waiting on a
+      // follow-back call to succeed (it may legitimately no-op/409 if the
+      // backend already created the relationship as part of accepting).
+      if (n.actor) {
+        const actorId = n.actor.id
+        setFollowedIds((prev) => new Set(prev).add(actorId))
+        setOwnProfile((prev) =>
+          prev ? { ...prev, following_count: prev.following_count + 1 } : prev
+        )
+        
+        // Best-effort safety net in case the backend doesn't already
+        // auto-follow on accept - failures here (e.g. "already following")
+        // are expected and must not undo the optimistic update above.
+        followAPI.follow(actorId).catch(() => {})
+      }
     } catch (err: any) {
       const message = extractErrorMessage(err, 'Could not accept request.')
       if (ALREADY_RESOLVED_HINT.test(message)) {
@@ -257,18 +313,22 @@ export default function NotificationsPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="text-[14px] text-[#1e293b] leading-snug">
-                        {n.actor ? (
-                          <Link
-                            href={`/profile/${n.actor.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-[700] text-[#0f172a] no-underline hover:underline"
-                          >
-                            {actorName}
-                          </Link>
+                        {n.type === 'friend_request' && (isAccepted || isRejected) ? (
+                          <span className="font-[700] text-[#0f172a]">
+                            {messageFor(n, isAccepted ? 'accepted' : 'rejected')}
+                          </span>
                         ) : (
-                          <span className="font-[700] text-[#0f172a]">FOMO</span>
-                        )}{' '}
-                        {messageFor(n)}
+                          <>
+                            {n.actor ? (
+                              <Link href={`/profile/${n.actor.id}`} onClick={(e) => e.stopPropagation()} className="font-[700] text-[#0f172a] no-underline hover:underline">
+                                {actorName}
+                              </Link>
+                            ) : (
+                              <span className="font-[700] text-[#0f172a]">FOMO</span>
+                            )}{' '}
+                            {messageFor(n)}
+                          </>
+                        )}
                       </div>
                       {n.comment_preview && (
                         <div className="text-[13px] text-[#64748b] bg-[#f8fafc] border border-[#e2e8f0] rounded-[8px] px-[10px] py-[4px] mt-[4px] truncate max-w-[320px]">

@@ -1,3 +1,4 @@
+import type { FollowListUser } from '@/components/FollowListModal'
 import axios from 'axios'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
@@ -181,13 +182,29 @@ export interface ProfileUpdatePayload {
 export const profileAPI = {
   getOwnProfile: () => api.get<Profile>('/users/me/profile'),
   getPublicProfile: (userId: string) => api.get<Profile>(`/users/${userId}/profile`),
-
-  // Powers the Edit Profile modal - send only the fields that changed.
   updateProfile: (payload: ProfileUpdatePayload) => api.patch<Profile>('/users/me/profile', payload),
-
-  // Kept as a thin convenience wrapper - some older call sites only
-  // ever touched bio.
   updateBio: (bio: string) => api.patch<Profile>('/users/me/profile', { bio }),
+
+  // NOTE: these previously pointed at `/profiles/${userId}/...`, a prefix
+  // that was never registered on the backend (only `/users/...` exists),
+  // so every one of these calls 404'd silently. Fixed to hit the real,
+  // already-working endpoints.
+  //
+  // `skip`/`limit` are optional so existing call sites that want the full
+  // list in one shot (e.g. ProfileView's friend-count fetch) keep working
+  // unchanged - axios omits params that are `undefined`. The FollowListModal
+  // passes both explicitly to page through results.
+  getFollowers: (userId: string, skip?: number, limit?: number) =>
+    api.get<FollowListUser[]>(`/users/${userId}/followers`, { params: { skip, limit } }),
+  getFollowing: (userId: string, skip?: number, limit?: number) =>
+    api.get<FollowListUser[]>(`/users/${userId}/following`, { params: { skip, limit } }),
+  getFriends: (userId: string, skip?: number, limit?: number) =>
+    api.get<FollowListUser[]>(`/users/${userId}/friends`, { params: { skip, limit } }),
+  // Total friend count, independent of the paginated list's page size -
+  // powers the profile's "Friends" stat (list length alone would cap at
+  // whatever page size the list endpoint returns).
+  getFriendsCount: (userId: string) =>
+    api.get<{ count: number }>(`/users/${userId}/friends/count`),
 }
 
 // ─── Media ──────────────────────────────────────────────

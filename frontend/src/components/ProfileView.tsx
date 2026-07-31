@@ -1,10 +1,12 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Profile, Post, resolveMediaUrl, followAPI, friendsAPI, conversationsAPI, extractErrorMessage } from '@/lib/api'
+import { Profile, Post, resolveMediaUrl, profileAPI, followAPI, friendsAPI, conversationsAPI, extractErrorMessage } from '@/lib/api'
 import { PostCard } from '@/components/PostCard'
 import { EditProfileModal } from '@/components/EditProfileModal'
 import { ArchivedPostsModal } from '@/components/ArchivedPostsModal'
+import { FollowListModal, FollowListType } from '@/components/FollowListModal'
 
 interface ProfileViewProps {
   profile: Profile
@@ -26,6 +28,10 @@ export function ProfileView({
   const [editOpen, setEditOpen] = useState(false)
   const [archivedOpen, setArchivedOpen] = useState(false)
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+
+  // ── Follow list modal (followers / following / friends) ──
+  const [listModalType, setListModalType] = useState<FollowListType | null>(null)
+  const [friendCount, setFriendCount] = useState<number | null>(null)
 
   // ── Follow state ──────────────────────────────────────
   const [isFollowing, setIsFollowing] = useState(false)
@@ -130,6 +136,23 @@ export function ProfileView({
     }
   }, [isOwnProfile, profile.user_id])
 
+  // Friend count for this profile - only used to render the "Friends" stat,
+  // fetched once regardless of whose profile this is.
+  useEffect(() => {
+    let cancelled = false
+    profileAPI
+      .getFriendsCount(profile.user_id)
+      .then((res) => {
+        if (!cancelled) setFriendCount(res.data.count)
+      })
+      .catch(() => {
+        // Non-fatal - stat just won't render
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [profile.user_id])
+
   const handleSendFriendRequest = async () => {
     if (friendActionLoading) return
     setFriendActionLoading(true)
@@ -143,6 +166,24 @@ export function ProfileView({
         setFriendStatus('pending')
       }
       setFriendError(extractErrorMessage(err, 'Could not send friend request.'))
+    } finally {
+      setFriendActionLoading(false)
+    }
+  }
+
+  const handleUnfriend = async () => {
+    if (friendActionLoading) return
+    const confirmed = window.confirm(`Unfriend ${profile.display_name || profile.username}? You can send a new friend request later.`)
+    if (!confirmed) return
+
+    setFriendActionLoading(true)
+    setFriendError(null)
+    try {
+      await friendsAPI.unfriend(profile.user_id)
+      setFriendStatus('none')
+      setFriendCount((prev) => (prev !== null ? Math.max(0, prev - 1) : prev))
+    } catch (err: any) {
+      setFriendError(extractErrorMessage(err, 'Could not unfriend this user.'))
     } finally {
       setFriendActionLoading(false)
     }
@@ -178,6 +219,23 @@ export function ProfileView({
     } finally {
       setFollowLoading(false)
     }
+  }
+
+  // Called by the list modal whenever a follow/friend action happens
+  // inside it, so this profile's own stats stay in sync without a full
+  // page refresh.
+  const refreshCounts = () => {
+    profileAPI
+      .getPublicProfile(profile.user_id)
+      .then((res) => {
+        setFollowerCount(res.data.follower_count)
+        onProfileUpdated(res.data)
+      })
+      .catch(() => {})
+    profileAPI
+      .getFriendsCount(profile.user_id)
+      .then((res) => setFriendCount(res.data.count))
+      .catch(() => {})
   }
 
   // Filter out archived/deleted posts safely
@@ -246,10 +304,16 @@ export function ProfileView({
                 </button>
 
                 {friendStatus === 'friends' && (
-                  <span className="px-[16px] py-[8px] text-[13px] font-[600] text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0] rounded-[8px] flex items-center gap-[6px]">
-                    <i className="fa-solid fa-user-check text-[12px]"></i>
-                    Friends
-                  </span>
+                  <button
+                    onClick={handleUnfriend}
+                    disabled={friendActionLoading || friendRelationLoading}
+                    className="group px-[16px] py-[8px] text-[13px] font-[600] text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0] rounded-[8px] cursor-pointer flex items-center gap-[6px] hover:text-[#dc2626] hover:bg-[#fef2f2] hover:border-[#fecaca] disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <i className="fa-solid fa-user-check text-[12px] group-hover:hidden"></i>
+                    <i className="fa-solid fa-user-xmark text-[12px] hidden group-hover:inline"></i>
+                    <span className="group-hover:hidden">{friendActionLoading ? '...' : 'Friends'}</span>
+                    <span className="hidden group-hover:inline">{friendActionLoading ? '...' : 'Unfriend'}</span>
+                  </button>
                 )}
                 {friendStatus === 'pending' && (
                   <button
@@ -296,9 +360,27 @@ export function ProfileView({
         {profile.bio && <p className="mt-[10px] text-[14px] text-[#374151] whitespace-pre-wrap">{profile.bio}</p>}
 
         <div className="flex items-center gap-[20px] mt-[14px] text-[13px]">
-          <span><b className="text-[#1a202c]">{visiblePosts.length}</b> <span className="text-[#64748b]">posts</span></span>
-          <span><b className="text-[#1a202c]">{followerCount}</b> <span className="text-[#64748b]">followers</span></span>
-          <span><b className="text-[#1a202c]">{profile.following_count}</b> <span className="text-[#64748b]">following</span></span>
+          <span>
+            <b className="text-[#1a202c]">{visiblePosts.length}</b> <span className="text-[#64748b]">posts</span>
+          </span>
+          <button
+            onClick={() => setListModalType('followers')}
+            className="bg-transparent border-none cursor-pointer p-0 hover:underline"
+          >
+            <b className="text-[#1a202c]">{followerCount}</b> <span className="text-[#64748b]">followers</span>
+          </button>
+          <button
+            onClick={() => setListModalType('following')}
+            className="bg-transparent border-none cursor-pointer p-0 hover:underline"
+          >
+            <b className="text-[#1a202c]">{profile.following_count}</b> <span className="text-[#64748b]">following</span>
+          </button>
+          <button
+            onClick={() => setListModalType('friends')}
+            className="bg-transparent border-none cursor-pointer p-0 hover:underline"
+          >
+            <b className="text-[#1a202c]">{friendCount ?? '–'}</b> <span className="text-[#64748b]">friends</span>
+          </button>
         </div>
       </div>
 
@@ -331,6 +413,16 @@ export function ProfileView({
           onClose={() => setArchivedOpen(false)}
           onPostChanged={onPostUpdated}
           onPostDeleted={onPostDeleted}
+        />
+      )}
+
+      {listModalType && (
+        <FollowListModal
+          userId={profile.user_id}
+          currentUserId={currentUserId}
+          initialType={listModalType}
+          onClose={() => setListModalType(null)}
+          onRelationshipChanged={refreshCounts}
         />
       )}
     </div>

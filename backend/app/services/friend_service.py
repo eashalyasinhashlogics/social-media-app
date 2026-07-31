@@ -9,7 +9,7 @@ from app.models.friendship import Friendship
 from app.models.user import User
 from app.db.enums import FriendRequestStatus
 from app.core.exceptions import UserNotFoundException
-
+from app.services.follow_service import FollowService
 
 class CannotFriendRequestSelfException(HTTPException):
     def __init__(self):
@@ -138,9 +138,20 @@ class FriendService:
         user1_id, user2_id = FriendService._ordered_pair(request.from_user_id, request.to_user_id)
         db.add(Friendship(user1_id=user1_id, user2_id=user2_id))
 
+        # Becoming friends auto-follows both directions. Reuses
+        # FollowService's idempotent helper (same Follow model/counters as
+        # manual follow/unfollow) so an existing follow either way is left
+        # untouched - no duplicate Follow rows, no double-counted stats.
+        FollowService.ensure_following(db, request.from_user_id, request.to_user_id)
+        FollowService.ensure_following(db, request.to_user_id, request.from_user_id)
+
         db.commit()
         db.refresh(request)
-        NotificationService.notify_friend_request(db, to_user_id, from_user_id, request.id)
+        # Bug fix: this previously referenced undefined `to_user_id`/
+        # `from_user_id` names (NameError on every accept) and used the
+        # wrong notification type - it's request.from_user_id who should be
+        # told their request was accepted.
+        NotificationService.notify_friend_accept(db, request.from_user_id, request.to_user_id, request.id)
         return request
 
     @staticmethod
@@ -187,6 +198,32 @@ class FriendService:
         )
 
     # ── Friendships ─────────────────────────────────────────────────
+    @staticmethod
+    def list_friend_ids(db: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 20) -> List[uuid.UUID]:
+        """Used by GET /users/{user_id}/friends to reuse
+        FollowService._to_follower_user_list for the public FollowerUser
+        shape (id/username/display_name/avatar_url), matching how the
+        followers/following endpoints already respond."""
+        rows = (
+            db.query(Friendship)
+            .filter(or_(Friendship.user1_id == user_id, Friendship.user2_id == user_id))
+            .order_by(Friendship.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return [row.user2_id if row.user1_id == user_id else row.user1_id for row in rows]
+        
+    @staticmethod
+    def count_friends(db: Session, user_id: uuid.UUID) -> int:
+        """Total friend count, independent of the paginated list_friend_ids
+        page size - used for the profile's "Friends" stat so it isn't
+        capped at whatever page size the followers/following list uses."""
+        return (
+            db.query(Friendship)
+            .filter(or_(Friendship.user1_id == user_id, Friendship.user2_id == user_id))
+            .count()
+        )
 
     @staticmethod
     def list_friends(db: Session, user_id: uuid.UUID) -> list:
