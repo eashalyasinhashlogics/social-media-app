@@ -16,12 +16,9 @@ const overlayStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  backgroundColor: 'rgba(0,0,0,0.4)',
+  backgroundColor: 'rgba(0,0,0,0.6)', // Darkened to 0.6 for better contrast
 }
 
-// If FollowListModal (or anything it renders) throws during mount/render,
-// this catches it and shows a visible message instead of the modal just
-// silently not appearing — which is what a swallowed error looks like.
 class FollowListErrorBoundary extends Component<
   { onClose: () => void; children: ReactNode },
   { error: Error | null }
@@ -41,7 +38,9 @@ class FollowListErrorBoundary extends Component<
       const content = (
         <div style={overlayStyle} onClick={this.props.onClose}>
           <div
-            className="w-[400px] bg-white rounded-[14px] shadow-[0_8px_30px_rgba(0,0,0,0.15)] p-[20px]"
+            className="w-[400px] rounded-[14px] shadow-[0_8px_30px_rgba(0,0,0,0.15)] p-[20px]"
+            // FORCED INLINE WHITE BACKGROUND
+            style={{ backgroundColor: '#ffffff' }}
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-[14px] font-[600] text-[#dc2626] mb-[8px]">
@@ -57,8 +56,6 @@ class FollowListErrorBoundary extends Component<
           </div>
         </div>
       )
-      // Portal this too, so an error state doesn't fall victim to the same
-      // ancestor-containing-block problem as the normal modal.
       if (typeof document === 'undefined') return null
       return createPortal(content, document.body)
     }
@@ -80,8 +77,6 @@ interface FollowListModalProps {
   currentUserId: string
   initialType: FollowListType
   onClose: () => void
-  // Called whenever a follow/friend action happens inside the modal, so the
-  // page behind it (e.g. ProfileView's stat counts) can refresh itself.
   onRelationshipChanged?: () => void
 }
 
@@ -93,8 +88,6 @@ const TABS: { type: FollowListType; label: string }[] = [
   { type: 'friends', label: 'Friends' },
 ]
 
-// Page size for each tab's list fetch/infinite-scroll. Kept in one place
-// so the "did we get a full page back" heuristic below stays consistent.
 const PAGE_SIZE = 20
 
 const fetchersByType: Record<
@@ -115,29 +108,21 @@ function FollowListModalInner({
 }: FollowListModalProps) {
   const [activeTab, setActiveTab] = useState<FollowListType>(initialType)
 
-  // Per-tab cache so switching tabs back and forth doesn't refetch.
   const [listCache, setListCache] = useState<Partial<Record<FollowListType, FollowListUser[]>>>({})
   const [loadingTabs, setLoadingTabs] = useState<Partial<Record<FollowListType, boolean>>>({})
   const [errorTabs, setErrorTabs] = useState<Partial<Record<FollowListType, string>>>({})
 
-  // Pagination bookkeeping, per tab. `hasMoreTabs[tab] === false` once a
-  // fetch comes back short of a full page (i.e. we've reached the end).
   const [hasMoreTabs, setHasMoreTabs] = useState<Partial<Record<FollowListType, boolean>>>({})
   const [loadingMoreTabs, setLoadingMoreTabs] = useState<Partial<Record<FollowListType, boolean>>>({})
 
-  // Viewer's own relationship data, fetched once and reused for every row
-  // in every tab — the same calls ProfileView makes for its own header button.
   const [viewerFollowingIds, setViewerFollowingIds] = useState<Set<string> | null>(null)
   const [viewerFriendIds, setViewerFriendIds] = useState<Set<string> | null>(null)
-  const [viewerOutgoing, setViewerOutgoing] = useState<Map<string, string> | null>(null) // toUserId -> requestId
+  const [viewerOutgoing, setViewerOutgoing] = useState<Map<string, string> | null>(null)
   const [viewerDataError, setViewerDataError] = useState(false)
 
-  // Per-row action loading, keyed by that row's user id.
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
-
-  // Portal target: only render on the client, after mount, since
-  // document.body doesn't exist during Next.js server rendering.
   const [mounted, setMounted] = useState(false)
+  
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -151,9 +136,6 @@ function FollowListModalInner({
     })
   }
 
-  // Fetch the viewer's own following/friends/outgoing lists once. This is
-  // best-effort — if it fails, rows just render without relationship
-  // buttons instead of taking the whole modal down with them.
   useEffect(() => {
     let cancelled = false
 
@@ -199,7 +181,6 @@ function FollowListModalInner({
     }
   }, [currentUserId])
 
-  // Fetch the active tab's first page, lazily, only once per tab.
   useEffect(() => {
     if (listCache[activeTab] !== undefined || loadingTabs[activeTab]) return
     let cancelled = false
@@ -240,16 +221,8 @@ function FollowListModalInner({
     return () => {
       cancelled = true
     }
-    // Intentionally NOT depending on `listCache`/`loadingTabs`: this effect
-    // writes both synchronously before its async fetch resolves, so
-    // including them here would cause React to tear the effect down (and
-    // flip `cancelled = true`) before the in-flight request ever settles,
-    // silently discarding a successful response. Read via closure instead.
   }, [activeTab, userId])
 
-  // Load the next page for a tab (called from the scroll handler below).
-  // Guarded against re-entrancy and against tabs that are already known
-  // to have no more results.
   const loadMore = (tab: FollowListType) => {
     const current = listCache[tab]
     if (!current || loadingTabs[tab] || loadingMoreTabs[tab] || hasMoreTabs[tab] === false) return
@@ -278,8 +251,6 @@ function FollowListModalInner({
       })
       .catch((err) => {
         console.error(`FollowListModal: loading more "${tab}" failed:`, err)
-        // Non-fatal — the list just stops growing; user can retry by
-        // scrolling again since we don't flip hasMoreTabs to false here.
       })
       .finally(() => {
         setLoadingMoreTabs((prev) => ({ ...prev, [tab]: false }))
@@ -288,8 +259,6 @@ function FollowListModalInner({
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
-    // Trigger the next page a bit before hitting the literal bottom so it
-    // feels seamless rather than causing a visible pause-then-load.
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
       loadMore(activeTab)
     }
@@ -310,7 +279,6 @@ function FollowListModalInner({
       setViewerFollowingIds((prev) => new Set(prev).add(rowUserId))
       onRelationshipChanged?.()
     } catch (err) {
-      // Non-fatal — row just stays on its previous state.
     } finally {
       setRowLoading(rowUserId, false)
     }
@@ -327,7 +295,6 @@ function FollowListModalInner({
       })
       onRelationshipChanged?.()
     } catch (err) {
-      // Non-fatal
     } finally {
       setRowLoading(rowUserId, false)
     }
@@ -340,7 +307,6 @@ function FollowListModalInner({
       setViewerOutgoing((prev) => new Map(prev).set(rowUserId, res.data.id))
       onRelationshipChanged?.()
     } catch (err) {
-      // Non-fatal
     } finally {
       setRowLoading(rowUserId, false)
     }
@@ -359,7 +325,6 @@ function FollowListModalInner({
       })
       onRelationshipChanged?.()
     } catch (err) {
-      // Non-fatal
     } finally {
       setRowLoading(rowUserId, false)
     }
@@ -376,7 +341,6 @@ function FollowListModalInner({
         next.delete(rowUserId)
         return next
       })
-      // If we're looking at our own friends tab, drop the row immediately.
       if (userId === currentUserId && activeTab === 'friends') {
         setListCache((prev) => ({
           ...prev,
@@ -385,7 +349,6 @@ function FollowListModalInner({
       }
       onRelationshipChanged?.()
     } catch (err) {
-      // Non-fatal
     } finally {
       setRowLoading(rowUserId, false)
     }
@@ -468,14 +431,14 @@ function FollowListModalInner({
   const isLoadingMore = loadingMoreTabs[activeTab]
   const error = errorTabs[activeTab]
 
-  // Don't render (and definitely don't portal) until we're mounted on the
-  // client — document.body isn't available during SSR.
   if (!mounted) return null
 
   const modalContent = (
     <div style={overlayStyle} onClick={onClose}>
       <div
-        className="w-[400px] max-h-[75vh] bg-white rounded-[14px] shadow-[0_8px_30px_rgba(0,0,0,0.15)] flex flex-col overflow-hidden"
+        className="w-[400px] max-h-[75vh] rounded-[14px] shadow-[0_8px_30px_rgba(0,0,0,0.15)] flex flex-col overflow-hidden"
+        // FORCED INLINE WHITE BACKGROUND 
+        style={{ backgroundColor: '#ffffff' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-[18px] py-[14px] border-b border-[#e2e8f0]">
