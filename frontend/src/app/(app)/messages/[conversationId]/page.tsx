@@ -53,8 +53,6 @@ interface WsErrorPayload {
 }
 type WsPayload = WsMessagePayload | WsMessageUpdatedPayload | WsMessageDeletedPayload | WsReactionPayload | WsErrorPayload
 
-const POLL_INTERVAL_MS = 5000
-
 export default function ConversationPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
   const searchParams = useSearchParams()
@@ -114,10 +112,19 @@ export default function ConversationPage() {
     conversationsAPI.markRead(conversationId).catch(() => {})
   }, [user, conversationId])
 
+  // NOTE (Important Change 1 / MF-2): this used to also run on a 5-second
+  // `setInterval`. That poll wasn't "extra safety" - it was hiding a
+  // WebSocket that crashed on the very first message anyone sent (see
+  // chat_ws.py). Now that the socket is actually fixed, the poll is
+  // removed so a broken connection is visible (the "Offline" badge below)
+  // instead of silently degrading to 5s-late delivery. What's kept is the
+  // focus/visibilitychange catch-up: a one-shot refetch for the case where
+  // the tab was backgrounded/asleep while the socket was disconnected, so
+  // the reconnect has something to reconcile against immediately.
   useEffect(() => {
     if (!user) return
 
-    const poll = () => {
+    const catchUp = () => {
       conversationsAPI
         .messages(conversationId)
         .then((res) => {
@@ -136,17 +143,15 @@ export default function ConversationPage() {
         .catch(() => {})
     }
 
-    const interval = setInterval(poll, POLL_INTERVAL_MS)
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') poll()
+      if (document.visibilityState === 'visible') catchUp()
     }
     document.addEventListener('visibilitychange', handleVisibility)
-    window.addEventListener('focus', poll)
+    window.addEventListener('focus', catchUp)
 
     return () => {
-      clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibility)
-      window.removeEventListener('focus', poll)
+      window.removeEventListener('focus', catchUp)
     }
   }, [user, conversationId])
 

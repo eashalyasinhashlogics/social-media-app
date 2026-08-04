@@ -181,14 +181,24 @@ class ConversationService:
         if not ConversationService.is_participant(db, conversation_id, user_id):
             raise NotConversationParticipantException()
 
+        # NOTE (Important Change 4 / B-1): querying oldest-first
+        # (`created_at.asc()`) with `skip=0, limit=50` always returns the
+        # SAME first 50 messages no matter how long the conversation gets -
+        # the newest messages were permanently unreachable in any
+        # conversation over 50 messages long. Query newest-first instead,
+        # take the page, then reverse in Python so the response is still
+        # chronological (oldest -> newest) for rendering. `skip` now counts
+        # back from the newest message, which is what "page 1 of a chat"
+        # should mean.
         messages = (
             db.query(Message)
             .filter(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.asc())
+            .order_by(Message.created_at.desc())
             .offset(skip)
             .limit(limit)
             .all()
         )
+        messages.reverse()
         return ConversationService.to_message_dict_batch(db, messages)
 
     # ── Message-level actions ───────────────────────────────────────
@@ -306,7 +316,7 @@ class ConversationService:
             db.add(conversation)
 
         db.commit()
-        
+
     @staticmethod
     def toggle_reaction(db: Session, conversation_id: uuid.UUID, message_id: uuid.UUID, user_id: uuid.UUID, emoji: str) -> dict:
         message = ConversationService._get_message_or_404(db, conversation_id, message_id)

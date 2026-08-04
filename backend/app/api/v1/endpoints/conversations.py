@@ -15,6 +15,14 @@ from app.websockets.connection_manager import manager
 router = APIRouter(prefix="/conversations", tags=["chat"])
 
 
+# NOTE (Important Change 2 / MF-3): this used to be defined TWICE in this
+# file - once here without `viewer_id`, and a corrected copy further down
+# with `viewer_id=current_user.id`. FastAPI matches the FIRST registered
+# route for a given path+method, so the corrected copy was silently dead
+# code - the Python name `start_conversation` was just rebound, with no
+# error to notice. The fix is to keep exactly one definition, with the
+# `viewer_id` fix folded in, in its original place - not to paste a second
+# corrected copy below it.
 @router.post("", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
 def start_conversation(
     payload: ConversationCreate,
@@ -22,7 +30,7 @@ def start_conversation(
     db: Session = Depends(get_db),
 ):
     conversation = ConversationService.get_or_create_direct_conversation(db, current_user.id, payload.user_id)
-    return ConversationService.to_response_dict_batch(db, [conversation])[0]
+    return ConversationService.to_response_dict_batch(db, [conversation], viewer_id=current_user.id)[0]
 
 
 @router.get("", response_model=List[ConversationResponse])
@@ -46,23 +54,42 @@ def list_messages(
     return ConversationService.list_messages(db, conversation_id, current_user.id, skip, limit)
 
 
+async def _broadcast(participant_ids, payload: dict) -> None:
+    for participant_id in participant_ids:
+        await manager.send_to_user(participant_id, payload)
+
+
+# NOTE (Important Change 1 / MF-4): `edit_message`, `remove_message`, and
+# `react_to_message` below all broadcast their result over the WebSocket via
+# `background_tasks.add_task(_broadcast, ...)`. This endpoint - the one
+# that's actually used for the "send a message" flow whenever there's an
+# attachment, or whenever the socket is down - did not. Recipients got
+# nothing until the next poll for a REST-sent message, which is backwards
+# (editing a message was more "real-time" than sending one). Fixed by
+# broadcasting here the same way the other three already do.
 @router.post("/{conversation_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 def send_message(
     conversation_id: uuid.UUID,
     payload: MessageCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return ConversationService.send_message(db, conversation_id, current_user.id, payload.content, payload.attachment_ids)
-
-@router.post("", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
-def start_conversation(
-    payload: ConversationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    conversation = ConversationService.get_or_create_direct_conversation(db, current_user.id, payload.user_id)
-    return ConversationService.to_response_dict_batch(db, [conversation], viewer_id=current_user.id)[0]
+    message = ConversationService.send_message(db, conversation_id, current_user.id, payload.content, payload.attachment_ids)
+    participant_ids = ConversationService.get_participant_ids(db, conversation_id)
+    background_tasks.add_task(
+        _broadcast,
+        participant_ids,
+        {
+            "type": "message",
+            "id": str(message["id"]),
+            "conversation_id": str(conversation_id),
+            "sender_id": str(message["sender_id"]),
+            "content": message["content"],
+            "created_at": message["created_at"].isoformat(),
+        },
+    )
+    return message
 
 
 @router.post("/{conversation_id}/read", response_model=MarkReadResponse)
@@ -82,10 +109,6 @@ def get_unread_count(
 ):
     count = ConversationService.get_unread_count(db, conversation_id, current_user.id)
     return {"conversation_id": conversation_id, "unread_count": count}
-
-async def _broadcast(participant_ids, payload: dict) -> None:
-    for participant_id in participant_ids:
-        await manager.send_to_user(participant_id, payload)
 
 
 @router.patch("/{conversation_id}/messages/{message_id}", response_model=MessageResponse)
