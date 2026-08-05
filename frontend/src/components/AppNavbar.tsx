@@ -1,10 +1,12 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { useProfile } from '@/context/ProfileContext'
 import { resolveMediaUrl } from '@/lib/api'
+import { useUnreadStore } from '@/store/unreadStore'
 
 interface Tab {
   key: string
@@ -39,6 +41,31 @@ export function AppNavbar() {
   const router = useRouter()
   const { user, logout } = useAuthStore()
   const { ownProfile } = useProfile()
+  const { messagesUnread, notificationsUnread, refreshMessages, refreshNotifications } = useUnreadStore()
+
+  // The store (store/unreadStore.ts) already self-corrects the instant
+  // conversationsAPI.markRead succeeds anywhere in the app - that's the
+  // actual fix for the "stuck until reload" bug. The interval below is only
+  // a safety net for changes made from another tab/device, and the
+  // pathname-triggered refresh is a second, independent safety net: it
+  // fires on every navigation regardless of whether any event was emitted,
+  // so even if a future code path forgets to signal the store, opening
+  // /messages (or navigating away from it) still self-corrects.
+  useEffect(() => {
+    if (!user) return
+    refreshMessages()
+    refreshNotifications()
+    const interval = setInterval(() => {
+      refreshMessages()
+      refreshNotifications()
+    }, 20000)
+    return () => clearInterval(interval)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    refreshMessages()
+  }, [user, pathname])
 
   const handleLogout = async () => {
     await logout()
@@ -62,13 +89,23 @@ export function AppNavbar() {
       <div className="flex items-center gap-[4px] bg-[#f8fafc] p-[4px] rounded-[12px] border border-[#e2e8f0]">
         {TABS.map((tab) => {
           const isActive = tab.href === '/profile' ? pathname.startsWith('/profile') : pathname === tab.href
+          const badge =
+            tab.key === 'messages' && messagesUnread > 0
+              ? String(messagesUnread > 99 ? '99+' : messagesUnread)
+              : tab.key === 'notifications' && notificationsUnread > 0
+              ? String(notificationsUnread > 99 ? '99+' : notificationsUnread)
+              : tab.badge
+
           return (
             <Link key={tab.key} href={tab.href} className={isActive ? TAB_ACTIVE_CLASSES : TAB_BASE_CLASSES}>
               <i className={`fa-solid fa-${tab.icon}`}></i>
               <span>{tab.label}</span>
-              {tab.badge && (
-                <span className="absolute top-[-4px] right-[-4px] bg-[#06b6d4] text-white text-[10px] font-bold w-[16px] h-[16px] rounded-full flex items-center justify-center border border-white">
-                  {tab.badge}
+              {badge && (
+                <span
+                  className="absolute top-[-4px] right-[-4px] bg-[#06b6d4] text-[11px] font-bold w-[16px] h-[16px] rounded-full flex items-center justify-center border border-white"
+                  style={{ color: '#ffffff' }}
+                >
+                  {badge}
                 </span>
               )}
             </Link>

@@ -13,12 +13,23 @@ from app.core.exceptions import (
     PostNotFoundException,
     NotPostOwnerException,
 )
+from app.services.conversation_service import (
+    ConversationService,
+    NotConversationParticipantException,
+)
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 ALLOWED_VIDEO_TYPES = {"video/mp4"}
+ALLOWED_DOCUMENT_TYPES = {
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain",
+}
 MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024        # 5 MB
 MAX_COVER_PHOTO_SIZE_BYTES = 8 * 1024 * 1024   # 8 MB (larger images, banner-sized)
 MAX_POST_MEDIA_SIZE_BYTES = 25 * 1024 * 1024   # 25 MB
+MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024   # 25 MB - matches post media
 
 
 class MediaService:
@@ -55,10 +66,6 @@ class MediaService:
 
         profile = db.query(UserProfile).filter(UserProfile.user_id == uploader_id).first()
         if not profile:
-            # A brand-new user may not have a UserProfile row yet (it's
-            # only created lazily on first bio/avatar/cover edit) -
-            # without this the very first avatar upload would silently
-            # do nothing.
             profile = UserProfile(user_id=uploader_id)
             db.add(profile)
             db.flush()
@@ -86,7 +93,7 @@ class MediaService:
             file_size=len(file_bytes),
         )
         db.add(media)
-        db.flush()  # get media.id before linking it to the profile below
+        db.flush()
 
         profile = db.query(UserProfile).filter(UserProfile.user_id == uploader_id).first()
         if not profile:
@@ -123,6 +130,50 @@ class MediaService:
             public_id=key,
             media_type=media_type,
             file_size=len(file_bytes),
+        )
+        db.add(media)
+        db.commit()
+        db.refresh(media)
+        return media
+
+    @staticmethod
+    async def upload_message_attachment(
+        db: Session, uploader_id: uuid.UUID, conversation_id: uuid.UUID, file: UploadFile
+    ) -> Media:
+        """Uploads a chat attachment and returns an unlinked Media row
+        (message_id is still NULL). The frontend uploads the file first -
+        so it can preview it / show progress before the user hits send -
+        then passes the returned media id back in `attachment_ids` on
+        POST /conversations/{id}/messages, which links it to a message
+        (see ConversationService.send_message)."""
+        if not ConversationService.is_participant(db, conversation_id, uploader_id):
+            raise NotConversationParticipantException()
+
+        allowed = ALLOWED_IMAGE_TYPES | ALLOWED_VIDEO_TYPES | ALLOWED_DOCUMENT_TYPES
+        file_bytes = await MediaService._read_and_validate(
+            file, allowed_types=allowed, max_size=MAX_ATTACHMENT_SIZE_BYTES
+        )
+
+        if file.content_type in ALLOWED_VIDEO_TYPES:
+            media_type = MediaType.video
+        elif file.content_type in ALLOWED_IMAGE_TYPES:
+            media_type = MediaType.image
+        else:
+            media_type = MediaType.document
+
+        url, key = upload_file_to_s3(
+            file_bytes, file.content_type, folder="attachments", original_filename=file.filename
+        )
+
+        media = Media(
+            uploader_id=uploader_id,
+            post_id=None,
+            message_id=None,
+            url=url,
+            public_id=key,
+            media_type=media_type,
+            file_size=len(file_bytes),
+            file_name=file.filename,
         )
         db.add(media)
         db.commit()

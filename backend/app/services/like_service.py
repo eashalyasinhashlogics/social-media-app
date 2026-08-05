@@ -3,6 +3,7 @@ import uuid
 
 from app.models.post_like import PostLike
 from app.services.post_service import PostService
+from app.services.notification_service import NotificationService
 
 
 class LikeService:
@@ -30,8 +31,11 @@ class LikeService:
         db.commit()
         db.refresh(post)
 
+        if liked:
+            NotificationService.notify_like(db, post.author_id, user_id, post.id)
+
         return {"liked": liked, "like_count": post.like_count}
-        
+
     @staticmethod
     def get_liked_post_ids(db: Session, user_id: uuid.UUID, post_ids: list) -> set:
         if not post_ids:

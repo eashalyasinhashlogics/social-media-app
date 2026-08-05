@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import uuid
-
+from app.schemas.post import PostCreate, PostUpdate, PostResponse, ShareCreate, LikeToggleResponse, TrendingHashtag
 from app.core.dependencies import get_db, get_current_user, get_current_user_optional
 from app.models.user import User
 from app.schemas.post import PostCreate, PostUpdate, PostResponse, ShareCreate, LikeToggleResponse
@@ -156,3 +156,10 @@ def get_feed(
     posts = PostService.get_feed(db, current_user.id, following_ids, skip, limit)
     liked_ids = LikeService.get_liked_post_ids(db, current_user.id, [p.id for p in posts])
     return PostService.to_response_dict_batch(db, posts, liked_ids)
+    
+@router.get("/trending/hashtags", response_model=List[TrendingHashtag])
+def trending_hashtags(
+    limit: int = 5,
+    db: Session = Depends(get_db),
+):
+    return PostService.trending_hashtags(db, limit)

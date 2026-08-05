@@ -29,3 +29,14 @@ class UserResponse(UTCTimestampMixin, UserBase):
 
     class Config:
         from_attributes = True
+
+class UserSearchResult(BaseModel):
+    id: uuid.UUID
+    username: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    follower_count: int = 0
+    is_following: bool = False
+
+    class Config:
+        from_attributes = True

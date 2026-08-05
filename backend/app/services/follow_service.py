@@ -8,7 +8,7 @@ from app.models.user_profile import UserProfile
 from app.models.media import Media
 from app.core.exceptions import UserNotFoundException
 from fastapi import HTTPException, status
-
+from app.services.notification_service import NotificationService
 
 class CannotFollowSelfException(HTTPException):
     def __init__(self):
@@ -70,11 +70,44 @@ class FollowService:
         db.refresh(following_profile)
         db.refresh(follower_profile)
 
+        NotificationService.notify_follow(db, following_id, follower_id)
+
         return {
             "following": True,
             "follower_count": following_profile.follower_count,
             "following_count": follower_profile.following_count,
         }
+
+    @staticmethod
+    def ensure_following(db: Session, follower_id: uuid.UUID, following_id: uuid.UUID) -> bool:
+        """Idempotent, non-raising variant of follow() for system-triggered
+        follows (e.g. auto-follow when a friend request is accepted).
+        Does not commit - the caller (FriendService.accept_request) commits
+        once alongside the Friendship row so both writes land atomically.
+        Returns True if a new Follow row was created, False if the pair
+        was already following (no duplicate row, no double-counted stats)."""
+        if follower_id == following_id:
+            return False
+
+        existing = (
+            db.query(Follow)
+            .filter(Follow.follower_id == follower_id, Follow.following_id == following_id)
+            .first()
+        )
+        if existing:
+            return False
+
+        db.add(Follow(follower_id=follower_id, following_id=following_id))
+
+        follower_profile = FollowService._get_or_create_profile(db, follower_id)
+        following_profile = FollowService._get_or_create_profile(db, following_id)
+        follower_profile.following_count += 1
+        following_profile.follower_count += 1
+        db.add(follower_profile)
+        db.add(following_profile)
+
+        NotificationService.notify_follow(db, following_id, follower_id)
+        return True
 
     @staticmethod
     def unfollow(db: Session, follower_id: uuid.UUID, following_id: uuid.UUID) -> dict:
@@ -152,17 +185,33 @@ class FollowService:
         return results
 
     @staticmethod
-    def list_followers(db: Session, user_id: uuid.UUID) -> list:
+    def list_followers(db: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 20) -> list:
         FollowService._get_active_user_or_404(db, user_id)
         follower_ids = [
-            row[0] for row in db.query(Follow.follower_id).filter(Follow.following_id == user_id).all()
+            row[0]
+            for row in (
+                db.query(Follow.follower_id)
+                .filter(Follow.following_id == user_id)
+                .order_by(Follow.created_at.desc())
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
         ]
         return FollowService._to_follower_user_list(db, follower_ids)
 
     @staticmethod
-    def list_following(db: Session, user_id: uuid.UUID) -> list:
+    def list_following(db: Session, user_id: uuid.UUID, skip: int = 0, limit: int = 20) -> list:
         FollowService._get_active_user_or_404(db, user_id)
         following_ids = [
-            row[0] for row in db.query(Follow.following_id).filter(Follow.follower_id == user_id).all()
+            row[0]
+            for row in (
+                db.query(Follow.following_id)
+                .filter(Follow.follower_id == user_id)
+                .order_by(Follow.created_at.desc())
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
         ]
         return FollowService._to_follower_user_list(db, following_ids)

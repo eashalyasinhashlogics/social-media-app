@@ -13,6 +13,7 @@ class MediaResponse(UTCTimestampMixin, BaseModel):
     url: str
     media_type: str
     file_size: Optional[int] = None
+    file_name: Optional[str] = None
     created_at: datetime
 
     class Config:

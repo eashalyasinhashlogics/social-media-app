@@ -32,6 +32,15 @@ def _extract_token(
     return request.cookies.get(ACCESS_TOKEN_COOKIE_NAME)
 
 
+def _is_refresh_token(payload: dict) -> bool:
+    """P-1 (security): create_refresh_token stamps {"type": "refresh"} on
+    every refresh token, but nothing ever read that claim - so a 30-day
+    refresh token authenticated every API call and WebSocket, defeating
+    the entire point of short-lived access tokens. Every place that turns
+    a raw JWT into a `User` must call this and reject refresh tokens."""
+    return payload.get("type") == "refresh"
+
+
 async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
@@ -43,6 +52,8 @@ async def get_current_user(
 
     try:
         payload = decode_token(token)
+        if _is_refresh_token(payload):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
@@ -67,6 +78,8 @@ async def get_current_user_optional(
         return None
     try:
         payload = decode_token(token)
+        if _is_refresh_token(payload):
+            return None
         user_id = payload.get("sub")
         if user_id is None:
             return None

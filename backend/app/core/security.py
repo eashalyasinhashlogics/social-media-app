@@ -20,7 +20,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict, expires_delta: timedelta = None) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    to_encode.update({"exp": expire})
+    # Explicit "type": "access" claim so every consumer of decode_token can
+    # positively check *what kind* of token it received, instead of only
+    # refresh tokens being tagged and access tokens being "whatever doesn't
+    # say refresh". See P-1: nothing previously read the refresh claim, so
+    # a 30-day refresh token authenticated every API call and WS connection.
+    to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def create_refresh_token(data: dict) -> str:

@@ -5,6 +5,10 @@ from app.core.security import hash_password, verify_password
 from app.core.exceptions import UserAlreadyExistsException, InvalidCredentialsException, UserBlockedException
 from app.db.enums import UserStatus
 from app.models.user_profile import UserProfile
+from typing import Optional, List
+import uuid
+from app.models.media import Media
+from app.models.follow import Follow
 
 class UserService:
 
@@ -58,3 +62,58 @@ class UserService:
             db.refresh(user)
         return user
 
+    @staticmethod
+    def search_users(db: Session, query: str, viewer_id: Optional[uuid.UUID], skip: int = 0, limit: int = 20) -> list:
+        users_q = db.query(User).filter(User.deleted_at.is_(None), User.status == UserStatus.active)
+        if query:
+            users_q = users_q.filter(User.username.ilike(f"%{query}%"))
+        users = users_q.order_by(User.username.asc()).offset(skip).limit(limit).all()
+        return UserService._shape_users(db, users, viewer_id)
+
+    @staticmethod
+    def list_featured(db: Session, viewer_id: Optional[uuid.UUID], limit: int = 8) -> list:
+        rows = (
+            db.query(User)
+            .join(UserProfile, UserProfile.user_id == User.id)
+            .filter(User.deleted_at.is_(None), User.status == UserStatus.active)
+            .order_by(UserProfile.follower_count.desc())
+            .limit(limit)
+            .all()
+        )
+        return UserService._shape_users(db, rows, viewer_id)
+
+    @staticmethod
+    def _shape_users(db: Session, users: List[User], viewer_id: Optional[uuid.UUID]) -> list:
+        if not users:
+            return []
+        user_ids = [u.id for u in users]
+        profiles_by_user_id = {
+            p.user_id: p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all()
+        }
+        picture_ids = {p.profile_picture_id for p in profiles_by_user_id.values() if p.profile_picture_id}
+        media_by_id = {m.id: m for m in db.query(Media).filter(Media.id.in_(picture_ids)).all()} if picture_ids else {}
+
+        following_ids = set()
+        if viewer_id:
+            following_ids = {
+                row[0]
+                for row in db.query(Follow.following_id)
+                .filter(Follow.follower_id == viewer_id, Follow.following_id.in_(user_ids))
+                .all()
+            }
+
+        results = []
+        for user in users:
+            if viewer_id and user.id == viewer_id:
+                continue
+            profile = profiles_by_user_id.get(user.id)
+            avatar = media_by_id.get(profile.profile_picture_id) if profile and profile.profile_picture_id else None
+            results.append({
+                "id": user.id,
+                "username": user.username,
+                "display_name": profile.display_name if profile else None,
+                "avatar_url": avatar.url if avatar else None,
+                "follower_count": profile.follower_count if profile else 0,
+                "is_following": user.id in following_ids,
+            })
+        return results

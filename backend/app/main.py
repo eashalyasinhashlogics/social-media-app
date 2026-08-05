@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import CORS_ORIGINS, APP_NAME, APP_VERSION, DEBUG
 from app.db.database import test_database_connection
 from app.api.v1.api import api_router
+from app.api.v1.endpoints import chat_ws
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION, debug=DEBUG)
 
@@ -28,6 +29,7 @@ def root():
     return {"message": f"Welcome to {APP_NAME}", "version": APP_VERSION, "docs": "/docs"}
 
 app.include_router(api_router)
+app.include_router(chat_ws.router)
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,4 +1,6 @@
+import type { FollowListUser } from '@/components/FollowListModal'
 import axios from 'axios'
+import { notifyUnreadChanged } from '@/lib/unreadEvents'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
 
@@ -6,6 +8,19 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1
 // (e.g. "/uploads/abc.jpg") returned by the backend against the API host
 // instead of the frontend's own origin.
 const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, '')
+// ─── WebSocket ──────────────────────────────────────────
+// BP-11: previously derived by string-replacing "http" -> "ws" on the REST
+// API origin. That only works by coincidence when the socket happens to
+// terminate on the same host as the API - the moment WS moves behind its
+// own load balancer/domain, this silently builds the wrong URL and chat
+// falls back to (or gets stuck on) polling with no visible error.
+// NEXT_PUBLIC_WS_URL lets the two be configured independently; the old
+// derivation is kept only as a fallback for local dev where they match.
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || `${API_ORIGIN.replace(/^http/, 'ws')}/ws/chat`
+
+export function getChatWsUrl(): string {
+  return WS_URL
+}
 
 const api = axios.create({
   baseURL: API_URL,
@@ -94,6 +109,17 @@ export function resolveMediaUrl(url: string | null | undefined): string {
   return `${API_ORIGIN}${url.startsWith('/') ? '' : '/'}${url}`
 }
 
+// ─── Dates ──────────────────────────────────────────────
+// The backend serializes created_at/updated_at with an explicit UTC
+// offset in the common case (e.g. "...+00:00"), which `new Date(...)`
+// parses correctly on its own. This is defense-in-depth for any
+// timestamp that arrives without one (e.g. an older cached response) -
+// treat it as UTC instead of the browser's local timezone.
+export function parseServerDate(dateString: string): Date {
+  const hasOffset = /Z$|[+-]\d{2}:?\d{2}$/.test(dateString)
+  return new Date(hasOffset ? dateString : `${dateString}Z`)
+}
+
 // ─── Auth ───────────────────────────────────────────────
 export const authAPI = {
   register: (email: string, username: string, password: string) =>
@@ -117,12 +143,24 @@ export const authAPI = {
 }
 
 // ─── Users ──────────────────────────────────────────────
+export interface UserSummary {
+  id: string
+  email: string
+  username: string
+  email_verified: boolean
+  role: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
 export const usersAPI = {
-  getMe: () => api.get<{
-    id: string; email: string; username: string
-    email_verified: boolean; role: string; status: string
-    created_at: string; updated_at: string
-  }>('/users/me'),
+  getMe: () => api.get<UserSummary>('/users/me'),
+
+  // GET /users/{user_id} - used to resolve a bare user id (e.g. from a
+  // friend-request payload, which only carries from_user_id/to_user_id)
+  // into a username for display.
+  getById: (userId: string) => api.get<UserSummary>(`/users/${userId}`),
 }
 
 // ─── OAuth ──────────────────────────────────────────────
@@ -154,13 +192,29 @@ export interface ProfileUpdatePayload {
 export const profileAPI = {
   getOwnProfile: () => api.get<Profile>('/users/me/profile'),
   getPublicProfile: (userId: string) => api.get<Profile>(`/users/${userId}/profile`),
-
-  // Powers the Edit Profile modal - send only the fields that changed.
   updateProfile: (payload: ProfileUpdatePayload) => api.patch<Profile>('/users/me/profile', payload),
-
-  // Kept as a thin convenience wrapper - some older call sites only
-  // ever touched bio.
   updateBio: (bio: string) => api.patch<Profile>('/users/me/profile', { bio }),
+
+  // NOTE: these previously pointed at `/profiles/${userId}/...`, a prefix
+  // that was never registered on the backend (only `/users/...` exists),
+  // so every one of these calls 404'd silently. Fixed to hit the real,
+  // already-working endpoints.
+  //
+  // `skip`/`limit` are optional so existing call sites that want the full
+  // list in one shot (e.g. ProfileView's friend-count fetch) keep working
+  // unchanged - axios omits params that are `undefined`. The FollowListModal
+  // passes both explicitly to page through results.
+  getFollowers: (userId: string, skip?: number, limit?: number) =>
+    api.get<FollowListUser[]>(`/users/${userId}/followers`, { params: { skip, limit } }),
+  getFollowing: (userId: string, skip?: number, limit?: number) =>
+    api.get<FollowListUser[]>(`/users/${userId}/following`, { params: { skip, limit } }),
+  getFriends: (userId: string, skip?: number, limit?: number) =>
+    api.get<FollowListUser[]>(`/users/${userId}/friends`, { params: { skip, limit } }),
+  // Total friend count, independent of the paginated list's page size -
+  // powers the profile's "Friends" stat (list length alone would cap at
+  // whatever page size the list endpoint returns).
+  getFriendsCount: (userId: string) =>
+    api.get<{ count: number }>(`/users/${userId}/friends/count`),
 }
 
 // ─── Media ──────────────────────────────────────────────
@@ -272,4 +326,180 @@ export const postsAPI = {
   listMyArchived: () => api.get<Post[]>('/posts/me/archived'),
   toggleLike: (postId: string) => api.post<LikeToggleResult>(`/posts/${postId}/like`),
   share: (postId: string, caption: string) => api.post<Post>(`/posts/${postId}/share`, { caption: caption || null }),
+}
+
+// ─── Follow ─────────────────────────────────────────────
+export interface FollowResult {
+  following: boolean
+  follower_count: number
+  following_count: number
+}
+export interface FollowerUser {
+  id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+}
+export const followAPI = {
+  follow: (userId: string) => api.post<FollowResult>(`/users/${userId}/follow`),
+  unfollow: (userId: string) => api.delete<FollowResult>(`/users/${userId}/follow`),
+  followers: (userId: string) => api.get<FollowerUser[]>(`/users/${userId}/followers`),
+  following: (userId: string) => api.get<FollowerUser[]>(`/users/${userId}/following`),
+}
+
+// ─── Feed (following) ───────────────────────────────────
+export const feedAPI = {
+  getFollowingFeed: (skip = 0, limit = 2) =>
+    api.get<Post[]>('/posts/feed/following', { params: { skip, limit } }),
+}
+
+// ─── Friends ────────────────────────────────────────────
+export interface FriendRequest {
+  id: string
+  from_user_id: string
+  to_user_id: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+export interface FriendUser {
+  id: string
+  email: string
+  username: string
+  role: string
+  status: string
+}
+export interface Friendship {
+  friend: FriendUser
+  friends_since: string
+}
+export const friendsAPI = {
+  send: (toUserId: string) => api.post<FriendRequest>('/friend-requests', { to_user_id: toUserId }),
+  listIncoming: () => api.get<FriendRequest[]>('/friend-requests', { params: { direction: 'incoming' } }),
+  listOutgoing: () => api.get<FriendRequest[]>('/friend-requests', { params: { direction: 'outgoing' } }),
+  accept: (requestId: string) => api.post<FriendRequest>(`/friend-requests/${requestId}/accept`),
+  reject: (requestId: string) => api.post<FriendRequest>(`/friend-requests/${requestId}/reject`),
+  cancel: (requestId: string) => api.delete(`/friend-requests/${requestId}`),
+  listFriends: () => api.get<Friendship[]>('/friends'),
+  unfriend: (userId: string) => api.delete(`/friends/${userId}`),
+}
+// ─── Conversations / Chat ───────────────────────────────
+export interface MessageReaction {
+  emoji: string
+  user_ids: string[]
+}
+export interface MessageAttachment {
+  id: string
+  url: string
+  media_type: 'image' | 'video' | 'document'
+  file_name?: string | null
+  file_size?: number | null
+}
+export interface Message {
+  id: string
+  conversation_id: string
+  sender_id: string
+  content: string
+  created_at: string
+  updated_at?: string | null
+  reactions?: MessageReaction[]
+  attachments?: MessageAttachment[]
+  // BP-14: user ids (other than the sender) who have read this message -
+  // lets the client render a per-message ✓/✓✓ instead of only the
+  // conversation-level unread badge.
+  read_by?: string[]
+}
+export interface Conversation {
+  id: string
+  type: string
+  participant_ids: string[]
+  last_message: Message | null
+  last_message_at: string | null
+  unread_count: number
+  created_at: string
+  updated_at: string
+}
+export const conversationsAPI = {
+  start: (userId: string) => api.post<Conversation>('/conversations', { user_id: userId }),
+  list: (skip = 0, limit = 20) => api.get<Conversation[]>('/conversations', { params: { skip, limit } }),
+  messages: (conversationId: string, skip = 0, limit = 50) =>
+    api.get<Message[]>(`/conversations/${conversationId}/messages`, { params: { skip, limit } }),
+  send: (conversationId: string, content: string, attachmentIds: string[] = []) =>
+    api.post<Message>(`/conversations/${conversationId}/messages`, {
+      content,
+      attachment_ids: attachmentIds,
+    }),
+  markRead: (conversationId: string) =>
+    api.post<{ marked_read: number }>(`/conversations/${conversationId}/read`).then((res) => {
+      // See lib/unreadEvents.ts - this is the single place every mark-read
+      // call in the app goes through, so it's the right place to fire the
+      // "unread state changed" signal rather than scattering the call
+      // across every screen that happens to call markRead.
+      notifyUnreadChanged()
+      return res
+    }),
+  unreadCount: (conversationId: string) =>
+    api.get<{ conversation_id: string; unread_count: number }>(`/conversations/${conversationId}/unread-count`),
+
+  updateMessage: (conversationId: string, messageId: string, content: string) =>
+    api.patch<Message>(`/conversations/${conversationId}/messages/${messageId}`, { content }),
+  deleteMessage: (conversationId: string, messageId: string) =>
+    api.delete(`/conversations/${conversationId}/messages/${messageId}`),
+  toggleReaction: (conversationId: string, messageId: string, emoji: string) =>
+    api.post<Message>(`/conversations/${conversationId}/messages/${messageId}/reactions`, { emoji }),
+
+  uploadAttachment: (conversationId: string, file: File, onProgress?: (pct: number) => void) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<MessageAttachment>(`/media/message-attachment/${conversationId}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+      },
+    })
+  },
+}
+
+// ─── Notifications ────────────────────────────────────
+export interface NotificationActor {
+  id: string
+  username: string
+  avatar_url: string | null
+}
+export interface Notification {
+  id: string
+  type: 'like' | 'comment' | 'reply' | 'friend_request' | 'friend_accept' | 'follow'
+  actor: NotificationActor | null
+  post_id: string | null
+  comment_id: string | null
+  post_preview: string | null
+  comment_preview: string | null
+  friend_request_id: string | null
+  is_read: boolean
+  created_at: string
+}
+export const notificationsAPI = {
+  list: (skip = 0, limit = 30) => api.get<Notification[]>('/notifications', { params: { skip, limit } }),
+  unreadCount: () => api.get<{ unread_count: number }>('/notifications/unread-count'),
+  markRead: (notificationId: string) => api.post(`/notifications/${notificationId}/read`),
+  markAllRead: () => api.post<{ marked_read: number }>('/notifications/read-all'),
+}
+// ─── Explore ──────────────────────────────────────────
+export interface UserSearchResult {
+  id: string
+  username: string
+  display_name: string | null
+  avatar_url: string | null
+  follower_count: number
+  is_following: boolean
+}
+export interface TrendingHashtag {
+  tag: string
+  post_count: number
+}
+export const exploreAPI = {
+  search: (q: string, skip = 0, limit = 20) =>
+    api.get<UserSearchResult[]>('/users/search/results', { params: { q, skip, limit } }),
+  featuredCreators: (limit = 8) => api.get<UserSearchResult[]>('/users/featured/creators', { params: { limit } }),
+  trendingHashtags: (limit = 5) => api.get<TrendingHashtag[]>('/posts/trending/hashtags', { params: { limit } }),
 }

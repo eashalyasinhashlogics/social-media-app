@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_db, get_current_user
 from app.core.email import send_otp_email
 from app.core.cookies import set_auth_cookies, clear_auth_cookies
-from app.core.exceptions import InvalidTokenException
+from app.core.security import decode_token
 from app.schemas.user import UserCreate
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest
 from app.schemas.otp import OTPVerifyRequest, OTPResendRequest, OTPResponse
@@ -69,7 +69,21 @@ def refresh_token(body: RefreshRequest, request: Request, response: Response, db
     if not refresh_value:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing")
 
-    tokens = AuthService.refresh_access_token(db, refresh_value)
+    try:
+        tokens = AuthService.refresh_access_token(db, refresh_value)
+    except HTTPException:
+        # The token is structurally valid (signed, not expired) but no
+        # longer usable - e.g. its user was deleted, or the token record
+        # was revoked/rotated. Without clearing the cookies here, the
+        # browser keeps sending this same "looks valid" cookie on every
+        # request forever: the proxy middleware only checks the JWT's own
+        # signature/expiry (not whether the user still exists), so it
+        # keeps treating the visitor as authenticated - bouncing them
+        # between /login (redirected to /feed as "already logged in") and
+        # /feed (whose API calls 401, retry this same failing refresh,
+        # and redirect back to /login) in an infinite loop.
+        clear_auth_cookies(response)
+        raise
     set_auth_cookies(response, tokens.access_token, tokens.refresh_token)
     return tokens
 
@@ -78,15 +92,28 @@ def logout(
     body: RefreshRequest,
     request: Request,
     response: Response,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # Deliberately does NOT depend on get_current_user: if the access
+    # token's user no longer exists (e.g. deleted from the DB), requiring
+    # a valid current_user here would 401 before ever reaching
+    # clear_auth_cookies() below - leaving the browser stuck with cookies
+    # that look valid forever and no way to log out of the loop. Logout
+    # should always succeed at clearing cookies regardless of whether the
+    # underlying user/token is still valid.
     refresh_value = body.refresh_token or request.cookies.get(REFRESH_TOKEN_COOKIE_NAME)
     if refresh_value:
         try:
-            AuthService.logout(db, str(current_user.id), refresh_value)
-        except InvalidTokenException:
-            # Token already revoked/unknown - still proceed to clear cookies below.
+            payload = decode_token(refresh_value)
+            user_id = payload.get("sub")
+            if user_id:
+                AuthService.logout(db, user_id, refresh_value)
+        except Exception:
+            # Token malformed/expired (decode_token raises jose's JWTError,
+            # not an HTTPException), already revoked/unknown, or its user
+            # no longer exists - none of that should ever block clearing
+            # the cookies below, which is the one thing logout absolutely
+            # must always do.
             pass
     clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
