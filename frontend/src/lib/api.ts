@@ -465,3 +465,76 @@ export const exploreAPI = {
   featuredCreators: (limit = 8) => api.get<UserSearchResult[]>('/users/featured/creators', { params: { limit } }),
   trendingHashtags: (limit = 5) => api.get<TrendingHashtag[]>('/posts/trending/hashtags', { params: { limit } }),
 }
+// ─── Admin ──────────────────────────────────────────────
+export interface AdminUser {
+  id: string
+  email: string
+  username: string
+  role: string
+  status: string
+  email_verified: boolean
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface AdminUserListResponse {
+  total: number
+  items: AdminUser[]
+}
+
+export interface AdminUserUpdatePayload {
+  username?: string
+  role?: 'user' | 'admin'
+}
+
+export interface AdminPostListResponse {
+  total: number
+  items: Post[]
+}
+
+export interface DailyCount {
+  date: string
+  count: number
+}
+
+export interface AdminStats {
+  total_users: number
+  total_posts: number
+  active_posts: number
+  archived_posts: number
+  signups_by_day: DailyCount[]
+  likes_by_day: DailyCount[]
+  comments_by_day: DailyCount[]
+}
+
+export const adminAPI = {
+  ping: () => api.get<{ message: string }>('/admin/ping'),
+
+  // ── Users ──
+  listUsers: (params: { skip?: number; limit?: number; status?: string; role?: string }) =>
+    api.get<AdminUserListResponse>('/admin/users', { params }),
+
+  getUser: (userId: string) => api.get<AdminUser>(`/admin/users/${userId}`),
+
+  updateUser: (userId: string, payload: AdminUserUpdatePayload) =>
+    api.patch<AdminUser>(`/admin/users/${userId}`, payload),
+
+  // Soft delete - backend sets status=deleted + deleted_at, never removes the row.
+  deleteUser: (userId: string) => api.delete<AdminUser>(`/admin/users/${userId}`),
+
+  blockUser: (userId: string) => api.post<AdminUser>(`/admin/users/${userId}/block`),
+  unblockUser: (userId: string) => api.post<AdminUser>(`/admin/users/${userId}/unblock`),
+
+  // ── Posts ──
+  listPosts: (params: { skip?: number; limit?: number; status?: string; author_id?: string }) =>
+    api.get<AdminPostListResponse>('/admin/posts', { params }),
+
+  updatePost: (postId: string, content: string) =>
+    api.patch<Post>(`/admin/posts/${postId}`, { content }),
+
+  deletePost: (postId: string) => api.delete<Post>(`/admin/posts/${postId}`),
+
+  // ── Stats (wired now for Slice E later) ──
+  getStats: (days = 30) => api.get<AdminStats>('/admin/stats', { params: { days } }),
+}

@@ -4,7 +4,8 @@
   '/notifications',
   '/communities',
   '/user',
-  '/profile'
+  '/profile',
+  '/admin'
 ] as const
 
 export const PUBLIC_ROUTES = [
@@ -41,20 +42,20 @@ export const MIDDLEWARE_CONFIG = {
 } as const
 
 export function isProtectedRoute(pathname: string): boolean {
-  return PROTECTED_ROUTES.some(route => pathname.startsWith(route))
+  return PROTECTED_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }
 
 export function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some(route => pathname.startsWith(route))
+  return PUBLIC_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }
 
 export function isAuthRoute(pathname: string): boolean {
-  return AUTH_ROUTES.some(route => pathname.startsWith(route))
+  return AUTH_ROUTES.some(route => pathname === route || pathname.startsWith(`${route}/`))
 }
 
 export function getSpecialRoute(pathname: string): keyof typeof SPECIAL_ROUTES | null {
   for (const [key, route] of Object.entries(SPECIAL_ROUTES)) {
-    if (pathname.startsWith(route)) {
+    if (pathname === route || pathname.startsWith(`${route}/`)) {
       return key as keyof typeof SPECIAL_ROUTES
     }
   }
@@ -76,6 +77,7 @@ export const MIDDLEWARE_MATCHER = [
   '/communities/:path*',
   '/user/:path*',
   '/profile/:path*',
+  '/admin/:path*',
   '/login',
   '/register',
   '/verify-email',

@@ -1,5 +1,5 @@
 ﻿from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Annotated
 from datetime import datetime
 import uuid
 
@@ -28,9 +28,8 @@ class AdminUserListResponse(BaseModel):
 
 
 class AdminUserUpdate(BaseModel):
-    username: Optional[str] = Field(None, min_length=3, max_length=100)
+    username: Optional[Annotated[str, Field(min_length=3, max_length=100)]] = None
     role: Optional[UserRole] = None
-
 
 class AdminPostListResponse(BaseModel):
     total: int

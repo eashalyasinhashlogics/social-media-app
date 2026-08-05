@@ -71,6 +71,7 @@ export const config = {
     '/communities/:path*',
     '/user/:path*',
     '/profile/:path*',
+    '/admin/:path*',
     '/login',
     '/register',
     '/verify-email',

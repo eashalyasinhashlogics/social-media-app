@@ -39,6 +39,11 @@ export function AppNavbar() {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuthStore()
+
+  const tabs = user?.role === 'admin'
+    ? [...TABS, { key: 'admin', label: 'Admin', href: '/admin', icon: 'shield-halved' }]
+    : TABS
+
   const { ownProfile } = useProfile()
   const [unreadTotal, setUnreadTotal] = useState(0)
   const [unreadNotifications, setUnreadNotifications] = useState(0)
@@ -110,8 +115,13 @@ export function AppNavbar() {
       </Link>
 
       <div className="flex items-center gap-[4px] bg-[#f8fafc] p-[4px] rounded-[12px] border border-[#e2e8f0]">
-        {TABS.map((tab) => {
-          const isActive = tab.href === '/profile' ? pathname.startsWith('/profile') : pathname === tab.href
+        {tabs.map((tab) => {
+          const isActive = tab.href === '/profile'
+            ? pathname.startsWith('/profile')
+            : tab.key === 'admin'
+            ? pathname.startsWith('/admin')
+            : pathname === tab.href
+
           const badge =
             tab.key === 'messages' && unreadTotal > 0
               ? String(unreadTotal > 99 ? '99+' : unreadTotal)
