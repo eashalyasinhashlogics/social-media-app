@@ -1,5 +1,6 @@
 import type { FollowListUser } from '@/components/FollowListModal'
 import axios from 'axios'
+import { notifyUnreadChanged } from '@/lib/unreadEvents'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
 
@@ -8,8 +9,17 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1
 // instead of the frontend's own origin.
 const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, '')
 // ─── WebSocket ──────────────────────────────────────────
+// BP-11: previously derived by string-replacing "http" -> "ws" on the REST
+// API origin. That only works by coincidence when the socket happens to
+// terminate on the same host as the API - the moment WS moves behind its
+// own load balancer/domain, this silently builds the wrong URL and chat
+// falls back to (or gets stuck on) polling with no visible error.
+// NEXT_PUBLIC_WS_URL lets the two be configured independently; the old
+// derivation is kept only as a fallback for local dev where they match.
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || `${API_ORIGIN.replace(/^http/, 'ws')}/ws/chat`
+
 export function getChatWsUrl(): string {
-  return `${API_ORIGIN.replace(/^http/, 'ws')}/ws/chat`
+  return WS_URL
 }
 
 const api = axios.create({
@@ -339,7 +349,7 @@ export const followAPI = {
 
 // ─── Feed (following) ───────────────────────────────────
 export const feedAPI = {
-  getFollowingFeed: (skip = 0, limit = 20) =>
+  getFollowingFeed: (skip = 0, limit = 2) =>
     api.get<Post[]>('/posts/feed/following', { params: { skip, limit } }),
 }
 
@@ -394,6 +404,10 @@ export interface Message {
   updated_at?: string | null
   reactions?: MessageReaction[]
   attachments?: MessageAttachment[]
+  // BP-14: user ids (other than the sender) who have read this message -
+  // lets the client render a per-message ✓/✓✓ instead of only the
+  // conversation-level unread badge.
+  read_by?: string[]
 }
 export interface Conversation {
   id: string
@@ -416,7 +430,14 @@ export const conversationsAPI = {
       attachment_ids: attachmentIds,
     }),
   markRead: (conversationId: string) =>
-    api.post<{ marked_read: number }>(`/conversations/${conversationId}/read`),
+    api.post<{ marked_read: number }>(`/conversations/${conversationId}/read`).then((res) => {
+      // See lib/unreadEvents.ts - this is the single place every mark-read
+      // call in the app goes through, so it's the right place to fire the
+      // "unread state changed" signal rather than scattering the call
+      // across every screen that happens to call markRead.
+      notifyUnreadChanged()
+      return res
+    }),
   unreadCount: (conversationId: string) =>
     api.get<{ conversation_id: string; unread_count: number }>(`/conversations/${conversationId}/unread-count`),
 

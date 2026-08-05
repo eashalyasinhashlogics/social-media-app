@@ -51,7 +51,21 @@ interface WsErrorPayload {
   type: 'error'
   detail: string
 }
-type WsPayload = WsMessagePayload | WsMessageUpdatedPayload | WsMessageDeletedPayload | WsReactionPayload | WsErrorPayload
+interface WsReadPayload {
+  type: 'read'
+  conversation_id: string
+  reader_id: string
+  message_ids: string[]
+}
+type WsPayload =
+  | WsMessagePayload
+  | WsMessageUpdatedPayload
+  | WsMessageDeletedPayload
+  | WsReactionPayload
+  | WsReadPayload
+  | WsErrorPayload
+
+const POLL_INTERVAL_MS = 5000
 
 export default function ConversationPage() {
   const { conversationId } = useParams<{ conversationId: string }>()
@@ -112,19 +126,10 @@ export default function ConversationPage() {
     conversationsAPI.markRead(conversationId).catch(() => {})
   }, [user, conversationId])
 
-  // NOTE (Important Change 1 / MF-2): this used to also run on a 5-second
-  // `setInterval`. That poll wasn't "extra safety" - it was hiding a
-  // WebSocket that crashed on the very first message anyone sent (see
-  // chat_ws.py). Now that the socket is actually fixed, the poll is
-  // removed so a broken connection is visible (the "Offline" badge below)
-  // instead of silently degrading to 5s-late delivery. What's kept is the
-  // focus/visibilitychange catch-up: a one-shot refetch for the case where
-  // the tab was backgrounded/asleep while the socket was disconnected, so
-  // the reconnect has something to reconcile against immediately.
   useEffect(() => {
     if (!user) return
 
-    const catchUp = () => {
+    const poll = () => {
       conversationsAPI
         .messages(conversationId)
         .then((res) => {
@@ -143,15 +148,17 @@ export default function ConversationPage() {
         .catch(() => {})
     }
 
+    const interval = setInterval(poll, POLL_INTERVAL_MS)
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') catchUp()
+      if (document.visibilityState === 'visible') poll()
     }
     document.addEventListener('visibilitychange', handleVisibility)
-    window.addEventListener('focus', catchUp)
+    window.addEventListener('focus', poll)
 
     return () => {
+      clearInterval(interval)
       document.removeEventListener('visibilitychange', handleVisibility)
-      window.removeEventListener('focus', catchUp)
+      window.removeEventListener('focus', poll)
     }
   }, [user, conversationId])
 
@@ -211,6 +218,15 @@ export default function ConversationPage() {
           setMessages((prev) => prev.filter((m) => m.id !== payload.id))
         } else if (payload.type === 'reaction_updated') {
           setMessages((prev) => prev.map((m) => (m.id === payload.id ? { ...m, reactions: payload.reactions } : m)))
+        } else if (payload.type === 'read') {
+          const readIds = new Set(payload.message_ids)
+          setMessages((prev) =>
+            prev.map((m) =>
+              readIds.has(m.id)
+                ? { ...m, read_by: [...new Set([...(m.read_by ?? []), payload.reader_id])] }
+                : m
+            )
+          )
         }
       }
     }
@@ -339,15 +355,14 @@ export default function ConversationPage() {
         {messages.map((m) => {
           const isMine = m.sender_id === user.id
           const showAvatar = !isMine
-          // Compare actual timestamps, not raw strings - created_at and
-          // updated_at can come back from the API with different string
-          // formatting/precision even when they represent the exact same
-          // instant, which was making every message look "edited" the
-          // moment it was sent.
-          const isEdited =
-            editedMessageIds.has(m.id) ||
-            (Boolean(m.updated_at) &&
-              parseServerDate(m.updated_at as string).getTime() !== parseServerDate(m.created_at).getTime())
+          // B-2 fix: updated_at is now only ever set by an actual edit
+          // (see models/message.py - no more `default=utcnow` racing
+          // created_at on INSERT), so NULL genuinely means "never
+          // edited" and a plain truthiness check is correct. The old
+          // timestamp-comparison here was a workaround for the backend
+          // bug, not a fix for it - it's gone now that the cause is gone.
+          const isEdited = editedMessageIds.has(m.id) || Boolean(m.updated_at)
+          const isRead = Boolean(otherUserId && m.read_by?.includes(otherUserId))
           return (
             <MessageBubble
               key={m.id}
@@ -359,6 +374,7 @@ export default function ConversationPage() {
               currentUserId={user.id}
               otherUsername={otherUsername || 'them'}
               isEdited={isEdited}
+              isRead={isRead}
               conversationId={conversationId}
               onEdited={handleMessageEdited}
               onDeleted={handleMessageDeleted}

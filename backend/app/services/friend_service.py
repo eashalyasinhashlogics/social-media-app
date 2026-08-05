@@ -109,6 +109,41 @@ class FriendService:
         if existing:
             raise FriendRequestAlreadyExistsException()
 
+        # MF-6 root cause: `friend_requests` has a UniqueConstraint on
+        # (from_user_id, to_user_id), and reject_request only flips the
+        # status - the row is left in place. If we always INSERT a fresh
+        # row here, "reject then send again" (same direction) passes the
+        # pending-only check above, then hits that unique constraint on
+        # INSERT and 500s as an unhandled IntegrityError.
+        #
+        # Fix at the layer that causes it: reuse any resolved
+        # (non-pending) row between these two users - in either direction,
+        # since the constraint is direction-specific and a prior request
+        # may have gone the other way - instead of inserting a new one.
+        # This also preserves the request's history/id rather than
+        # silently duplicating rows.
+        existing_resolved = (
+            db.query(FriendRequest)
+            .filter(
+                FriendRequest.status != FriendRequestStatus.pending,
+                or_(
+                    and_(FriendRequest.from_user_id == from_user_id, FriendRequest.to_user_id == to_user_id),
+                    and_(FriendRequest.from_user_id == to_user_id, FriendRequest.to_user_id == from_user_id),
+                ),
+            )
+            .first()
+        )
+
+        if existing_resolved:
+            existing_resolved.from_user_id = from_user_id
+            existing_resolved.to_user_id = to_user_id
+            existing_resolved.status = FriendRequestStatus.pending
+            db.add(existing_resolved)
+            db.commit()
+            db.refresh(existing_resolved)
+            NotificationService.notify_friend_request(db, to_user_id, from_user_id, existing_resolved.id)
+            return existing_resolved
+
         request = FriendRequest(from_user_id=from_user_id, to_user_id=to_user_id, status=FriendRequestStatus.pending)
         db.add(request)
         db.commit()

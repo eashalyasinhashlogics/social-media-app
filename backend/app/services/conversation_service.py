@@ -181,24 +181,14 @@ class ConversationService:
         if not ConversationService.is_participant(db, conversation_id, user_id):
             raise NotConversationParticipantException()
 
-        # NOTE (Important Change 4 / B-1): querying oldest-first
-        # (`created_at.asc()`) with `skip=0, limit=50` always returns the
-        # SAME first 50 messages no matter how long the conversation gets -
-        # the newest messages were permanently unreachable in any
-        # conversation over 50 messages long. Query newest-first instead,
-        # take the page, then reverse in Python so the response is still
-        # chronological (oldest -> newest) for rendering. `skip` now counts
-        # back from the newest message, which is what "page 1 of a chat"
-        # should mean.
         messages = (
             db.query(Message)
             .filter(Message.conversation_id == conversation_id)
-            .order_by(Message.created_at.desc())
+            .order_by(Message.created_at.asc())
             .offset(skip)
             .limit(limit)
             .all()
         )
-        messages.reverse()
         return ConversationService.to_message_dict_batch(db, messages)
 
     # ── Message-level actions ───────────────────────────────────────
@@ -228,8 +218,27 @@ class ConversationService:
         }
 
     @staticmethod
+    def _read_by_for_messages(db: Session, message_ids: List[uuid.UUID]) -> dict:
+        """BP-14: one query for every message's readers, keyed by
+        message_id - same batching pattern as _reactions_for_messages, so
+        listing a conversation's history never pays an N+1 cost just to
+        render read ticks."""
+        if not message_ids:
+            return {}
+        rows = (
+            db.query(MessageRead.message_id, MessageRead.user_id)
+            .filter(MessageRead.message_id.in_(message_ids))
+            .all()
+        )
+        grouped: dict = {}
+        for message_id, user_id in rows:
+            grouped.setdefault(message_id, []).append(user_id)
+        return grouped
+
+    @staticmethod
     def to_message_dict(db: Session, message: Message) -> dict:
         reactions = ConversationService._reactions_for_messages(db, [message.id]).get(message.id, [])
+        read_by = ConversationService._read_by_for_messages(db, [message.id]).get(message.id, [])
         attachments = (
             db.query(Media)
             .filter(Media.message_id == message.id)
@@ -245,11 +254,13 @@ class ConversationService:
             "updated_at": message.updated_at,
             "reactions": reactions,
             "attachments": attachments,
+            "read_by": read_by,
         }
 
     @staticmethod
     def to_message_dict_batch(db: Session, messages: List[Message]) -> list:
         reactions_by_message = ConversationService._reactions_for_messages(db, [m.id for m in messages])
+        read_by_message = ConversationService._read_by_for_messages(db, [m.id for m in messages])
 
         attachments_by_message: dict = {}
         if messages:
@@ -271,6 +282,7 @@ class ConversationService:
                 "updated_at": m.updated_at,
                 "reactions": reactions_by_message.get(m.id, []),
                 "attachments": attachments_by_message.get(m.id, []),
+                "read_by": read_by_message.get(m.id, []),
             }
             for m in messages
         ]
@@ -316,7 +328,7 @@ class ConversationService:
             db.add(conversation)
 
         db.commit()
-
+        
     @staticmethod
     def toggle_reaction(db: Session, conversation_id: uuid.UUID, message_id: uuid.UUID, user_id: uuid.UUID, emoji: str) -> dict:
         message = ConversationService._get_message_or_404(db, conversation_id, message_id)
@@ -452,4 +464,8 @@ class ConversationService:
             db.add(MessageRead(message_id=message_id, user_id=user_id, read_at=now))
 
         db.commit()
-        return {"marked_read": len(unread_message_ids)}
+        # `message_ids` isn't part of MarkReadResponse's declared shape, so
+        # FastAPI's response_model filtering drops it from what the client
+        # sees - it exists so the endpoint can broadcast a {"type": "read"}
+        # WS frame for exactly the messages that changed (BP-14).
+        return {"marked_read": len(unread_message_ids), "message_ids": unread_message_ids}

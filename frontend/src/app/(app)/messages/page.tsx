@@ -159,7 +159,10 @@ export default function MessagesPage() {
                       {conv.last_message ? conv.last_message.content : 'No messages yet'}
                     </p>
                     {conv.unread_count > 0 && (
-                      <span className="w-[18px] h-[18px] rounded-full bg-[#06b6d4] text-white text-[11px] font-[700] flex items-center justify-center flex-shrink-0">
+                      <span
+                        className="w-[18px] h-[18px] rounded-full bg-[#06b6d4] text-[11px] font-[700] flex items-center justify-center flex-shrink-0"
+                        style={{ color: '#ffffff' }}
+                      >
                         {conv.unread_count > 99 ? '99+' : conv.unread_count}
                       </span>
                     )}
