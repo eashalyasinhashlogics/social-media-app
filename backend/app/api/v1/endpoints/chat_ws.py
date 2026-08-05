@@ -55,7 +55,16 @@ async def chat_websocket(websocket: WebSocket, token: Optional[str] = Query(defa
 
     try:
         while True:
-            data = await websocket.receive_json()
+            try:
+                data = await websocket.receive_json()
+            except WebSocketDisconnect:
+                raise
+            except Exception:
+                # Malformed frame (not JSON, etc). Don't let a garbled
+                # client message kill an otherwise-healthy connection.
+                await websocket.send_json({"type": "error", "detail": "Malformed message"})
+                continue
+
             conversation_id_raw = data.get("conversation_id")
             content = data.get("content")
 
@@ -69,37 +78,56 @@ async def chat_websocket(websocket: WebSocket, token: Optional[str] = Query(defa
                 await websocket.send_json({"type": "error", "detail": "conversation_id must be a valid UUID"})
                 continue
 
-            db: Session = SessionLocal()
+            # Everything below - the DB write and the broadcast - is
+            # wrapped so that ANY unexpected exception (not just the ones
+            # we anticipated) sends the client an error frame and keeps the
+            # loop, and therefore the socket, alive. This is what MF-2
+            # actually needed: the previous code only caught
+            # WebSocketDisconnect, so an AttributeError (or anything else)
+            # propagated out of the `try` and tore the whole connection
+            # down on the very first message.
             try:
-                # Checked explicitly (rather than just catching the
-                # exception from send_message) so a bad message never even
-                # reaches persistence - and so the connection stays open
-                # instead of being torn down. The same socket may
-                # legitimately be used to message several conversations.
-                if not ConversationService.is_participant(db, conversation_id, user.id):
-                    await websocket.send_json({"type": "error", "detail": "You are not a participant in this conversation"})
-                    continue
-
+                db: Session = SessionLocal()
                 try:
-                    message = ConversationService.send_message(db, conversation_id, user.id, content)
-                except (ConversationNotFoundException, NotConversationParticipantException) as exc:
-                    await websocket.send_json({"type": "error", "detail": exc.detail})
-                    continue
+                    # Checked explicitly (rather than just catching the
+                    # exception from send_message) so a bad message never even
+                    # reaches persistence - and so the connection stays open
+                    # instead of being torn down. The same socket may
+                    # legitimately be used to message several conversations.
+                    if not ConversationService.is_participant(db, conversation_id, user.id):
+                        await websocket.send_json({"type": "error", "detail": "You are not a participant in this conversation"})
+                        continue
 
-                participant_ids = ConversationService.get_participant_ids(db, conversation_id)
-            finally:
-                db.close()
+                    try:
+                        message = ConversationService.send_message(db, conversation_id, user.id, content)
+                    except (ConversationNotFoundException, NotConversationParticipantException) as exc:
+                        await websocket.send_json({"type": "error", "detail": exc.detail})
+                        continue
 
-            payload = {
-                "type": "message",
-                "id": str(message.id),
-                "conversation_id": str(message.conversation_id),
-                "sender_id": str(message.sender_id),
-                "content": message.content,
-                "created_at": message.created_at.isoformat(),
-            }
-            for participant_id in participant_ids:
-                await manager.send_to_user(participant_id, payload)
+                    participant_ids = ConversationService.get_participant_ids(db, conversation_id)
+                finally:
+                    db.close()
+
+                # `send_message` is typed `-> dict` and returns
+                # `to_message_dict(...)` - it is NOT an ORM object. Accessing
+                # `message.id` / `message.conversation_id` raised
+                # AttributeError here, which is the actual MF-2 bug. Use dict
+                # access instead.
+                payload = {
+                    "type": "message",
+                    "id": str(message["id"]),
+                    "conversation_id": str(message["conversation_id"]),
+                    "sender_id": str(message["sender_id"]),
+                    "content": message["content"],
+                    "created_at": message["created_at"].isoformat(),
+                }
+                for participant_id in participant_ids:
+                    await manager.send_to_user(participant_id, payload)
+
+            except WebSocketDisconnect:
+                raise
+            except Exception:
+                await websocket.send_json({"type": "error", "detail": "Failed to send message"})
 
     except WebSocketDisconnect:
         manager.disconnect(user.id, websocket)

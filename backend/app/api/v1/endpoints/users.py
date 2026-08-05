@@ -1,17 +1,18 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+﻿import uuid
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-from typing import Optional
-import uuid
-from app.schemas.user import UserResponse, UserSearchResult
+
 from app.core.dependencies import get_db, get_current_user, get_current_user_optional
 from app.models.user import User
-from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, UserSearchResult
 from app.schemas.user_profile import ProfileResponse, ProfileUpdate
+from app.schemas.follow import FollowResponse, FollowerUser
 from app.services.user_service import UserService
 from app.services.profile_service import ProfileService
-from app.schemas.follow import FollowResponse, FollowerUser
 from app.services.follow_service import FollowService
-from typing import List
+from app.services.friend_service import FriendService
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -70,7 +71,6 @@ def get_public_profile(
     return ProfileService.get_public_profile(db, user_id, viewer_id)
 
 
-
 @router.post("/{user_id}/follow", response_model=FollowResponse, status_code=status.HTTP_201_CREATED)
 def follow_user(
     user_id: uuid.UUID,
@@ -90,13 +90,46 @@ def unfollow_user(
 
 
 @router.get("/{user_id}/followers", response_model=List[FollowerUser])
-def list_followers(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    return FollowService.list_followers(db, user_id)
+def list_followers(
+    user_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    return FollowService.list_followers(db, user_id, skip, limit)
 
 
 @router.get("/{user_id}/following", response_model=List[FollowerUser])
-def list_following(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    return FollowService.list_following(db, user_id)
+def list_following(
+    user_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    return FollowService.list_following(db, user_id, skip, limit)
+
+
+@router.get("/{user_id}/friends/count")
+def count_user_friends(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    # Registered BEFORE "/{user_id}/friends" so FastAPI matches this literal
+    # path segment instead of treating "count" as part of the list route.
+    return {"count": FriendService.count_friends(db, user_id)}
+
+
+@router.get("/{user_id}/friends", response_model=List[FollowerUser])
+def list_user_friends(
+    user_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    # Public, mirrors /followers and /following - reuses FriendService for
+    # the id lookup and FollowService's existing batched shaping helper so
+    # the response matches the same {id, username, display_name, avatar_url}
+    # shape the frontend's FollowListUser already expects.
+    friend_ids = FriendService.list_friend_ids(db, user_id, skip, limit)
+    return FollowService._to_follower_user_list(db, friend_ids)
+
 
 @router.get("/search/results", response_model=List[UserSearchResult])
 def search_users(

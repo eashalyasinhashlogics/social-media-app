@@ -68,10 +68,25 @@ def start_conversation(
 @router.post("/{conversation_id}/read", response_model=MarkReadResponse)
 def mark_conversation_read(
     conversation_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return ConversationService.mark_conversation_read(db, conversation_id, current_user.id)
+    result = ConversationService.mark_conversation_read(db, conversation_id, current_user.id)
+    message_ids = result.get("message_ids", [])
+    if message_ids:
+        participant_ids = ConversationService.get_participant_ids(db, conversation_id)
+        background_tasks.add_task(
+            _broadcast,
+            participant_ids,
+            {
+                "type": "read",
+                "conversation_id": str(conversation_id),
+                "reader_id": str(current_user.id),
+                "message_ids": [str(mid) for mid in message_ids],
+            },
+        )
+    return result
 
 
 @router.get("/{conversation_id}/unread-count", response_model=UnreadCountResponse)

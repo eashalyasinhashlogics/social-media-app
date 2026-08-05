@@ -51,7 +51,19 @@ interface WsErrorPayload {
   type: 'error'
   detail: string
 }
-type WsPayload = WsMessagePayload | WsMessageUpdatedPayload | WsMessageDeletedPayload | WsReactionPayload | WsErrorPayload
+interface WsReadPayload {
+  type: 'read'
+  conversation_id: string
+  reader_id: string
+  message_ids: string[]
+}
+type WsPayload =
+  | WsMessagePayload
+  | WsMessageUpdatedPayload
+  | WsMessageDeletedPayload
+  | WsReactionPayload
+  | WsReadPayload
+  | WsErrorPayload
 
 const POLL_INTERVAL_MS = 5000
 
@@ -206,6 +218,15 @@ export default function ConversationPage() {
           setMessages((prev) => prev.filter((m) => m.id !== payload.id))
         } else if (payload.type === 'reaction_updated') {
           setMessages((prev) => prev.map((m) => (m.id === payload.id ? { ...m, reactions: payload.reactions } : m)))
+        } else if (payload.type === 'read') {
+          const readIds = new Set(payload.message_ids)
+          setMessages((prev) =>
+            prev.map((m) =>
+              readIds.has(m.id)
+                ? { ...m, read_by: [...new Set([...(m.read_by ?? []), payload.reader_id])] }
+                : m
+            )
+          )
         }
       }
     }
@@ -334,15 +355,14 @@ export default function ConversationPage() {
         {messages.map((m) => {
           const isMine = m.sender_id === user.id
           const showAvatar = !isMine
-          // Compare actual timestamps, not raw strings - created_at and
-          // updated_at can come back from the API with different string
-          // formatting/precision even when they represent the exact same
-          // instant, which was making every message look "edited" the
-          // moment it was sent.
-          const isEdited =
-            editedMessageIds.has(m.id) ||
-            (Boolean(m.updated_at) &&
-              parseServerDate(m.updated_at as string).getTime() !== parseServerDate(m.created_at).getTime())
+          // B-2 fix: updated_at is now only ever set by an actual edit
+          // (see models/message.py - no more `default=utcnow` racing
+          // created_at on INSERT), so NULL genuinely means "never
+          // edited" and a plain truthiness check is correct. The old
+          // timestamp-comparison here was a workaround for the backend
+          // bug, not a fix for it - it's gone now that the cause is gone.
+          const isEdited = editedMessageIds.has(m.id) || Boolean(m.updated_at)
+          const isRead = Boolean(otherUserId && m.read_by?.includes(otherUserId))
           return (
             <MessageBubble
               key={m.id}
@@ -354,6 +374,7 @@ export default function ConversationPage() {
               currentUserId={user.id}
               otherUsername={otherUsername || 'them'}
               isEdited={isEdited}
+              isRead={isRead}
               conversationId={conversationId}
               onEdited={handleMessageEdited}
               onDeleted={handleMessageDeleted}

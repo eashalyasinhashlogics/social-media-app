@@ -20,6 +20,7 @@ interface MessageBubbleProps {
   currentUserId: string
   otherUsername: string
   isEdited: boolean
+  isRead?: boolean
   conversationId: string
   onEdited: (message: Message) => void
   onDeleted: (messageId: string) => void
@@ -35,6 +36,7 @@ export function MessageBubble({
   currentUserId,
   otherUsername,
   isEdited,
+  isRead,
   conversationId,
   onEdited,
   onDeleted,
@@ -300,9 +302,19 @@ export function MessageBubble({
             {formatTime(message.created_at)}
             {isEdited && ' · edited'}
             {isMine && (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 6L7 17l-5-5"></path>
-              </svg>
+              <span
+                className={`inline-flex ${isRead ? 'text-[#4f46e5]' : ''}`}
+                title={isRead ? 'Read' : 'Sent'}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6L7 17l-5-5"></path>
+                </svg>
+                {isRead && (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: '-7px' }}>
+                    <path d="M18 6L7 17l-5-5"></path>
+                  </svg>
+                )}
+              </span>
             )}
           </span>
         )}

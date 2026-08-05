@@ -45,6 +45,11 @@ class MessageResponse(UTCTimestampMixin, BaseModel):
     updated_at: Optional[datetime] = None
     reactions: List[MessageReactionOut] = []
     attachments: List[MessageAttachmentOut] = []
+    # BP-14: MessageRead rows were written but never returned here, so the
+    # client had no way to render a per-message read tick - only the
+    # conversation-level unread badge. `read_by` is every user_id (other
+    # than the sender) who has read this specific message.
+    read_by: List[uuid.UUID] = []
 
     class Config:
         from_attributes = True

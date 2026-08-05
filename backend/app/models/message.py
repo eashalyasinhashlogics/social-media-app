@@ -14,7 +14,13 @@ class Message(Base):
     sender_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=True)
+    # No `default` here on purpose: `onupdate` alone means this column stays
+    # NULL until an UPDATE actually happens, so "NULL == never edited" is a
+    # fact you can check directly. With a `default=datetime.utcnow` on top of
+    # `onupdate`, INSERT stamped both created_at and updated_at from two
+    # separate utcnow() calls a few microseconds apart, so every message
+    # came back from the API looking edited.
+    updated_at = Column(DateTime, onupdate=datetime.utcnow, nullable=True)
 
     sender = relationship("User", backref="sent_messages")
 

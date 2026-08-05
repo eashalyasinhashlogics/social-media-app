@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { useProfile } from '@/context/ProfileContext'
-import { resolveMediaUrl, conversationsAPI, notificationsAPI } from '@/lib/api'
+import { resolveMediaUrl } from '@/lib/api'
+import { useUnreadStore } from '@/store/unreadStore'
 
 interface Tab {
   key: string
@@ -45,55 +46,31 @@ export function AppNavbar() {
     : TABS
 
   const { ownProfile } = useProfile()
-  const [unreadTotal, setUnreadTotal] = useState(0)
-  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const { messagesUnread, notificationsUnread, refreshMessages, refreshNotifications } = useUnreadStore()
 
-  // Reuses the same conversationsAPI.list() call the Messages page
-  // already makes rather than adding a new endpoint - good enough for
-  // "kept simple" per the milestone spec. 20s is frequent enough to
-  // feel live without hammering the backend.
+  // The store (store/unreadStore.ts) already self-corrects the instant
+  // conversationsAPI.markRead succeeds anywhere in the app - that's the
+  // actual fix for the "stuck until reload" bug. The interval below is only
+  // a safety net for changes made from another tab/device, and the
+  // pathname-triggered refresh is a second, independent safety net: it
+  // fires on every navigation regardless of whether any event was emitted,
+  // so even if a future code path forgets to signal the store, opening
+  // /messages (or navigating away from it) still self-corrects.
   useEffect(() => {
     if (!user) return
-    let cancelled = false
-
-    const poll = () => {
-      conversationsAPI
-        .list()
-        .then((res) => {
-          if (cancelled) return
-          setUnreadTotal(res.data.reduce((sum, c) => sum + c.unread_count, 0))
-        })
-        .catch(() => {})
-    }
-
-    poll()
-    const interval = setInterval(poll, 20000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
+    refreshMessages()
+    refreshNotifications()
+    const interval = setInterval(() => {
+      refreshMessages()
+      refreshNotifications()
+    }, 20000)
+    return () => clearInterval(interval)
   }, [user])
 
   useEffect(() => {
     if (!user) return
-    let cancelled = false
-
-    const poll = () => {
-      notificationsAPI
-        .unreadCount()
-        .then((res) => {
-          if (!cancelled) setUnreadNotifications(res.data.unread_count)
-        })
-        .catch(() => {})
-    }
-
-    poll()
-    const interval = setInterval(poll, 20000)
-    return () => {
-      cancelled = true
-      clearInterval(interval)
-    }
-  }, [user])
+    refreshMessages()
+  }, [user, pathname])
 
   const handleLogout = async () => {
     await logout()
@@ -123,10 +100,10 @@ export function AppNavbar() {
             : pathname === tab.href
 
           const badge =
-            tab.key === 'messages' && unreadTotal > 0
-              ? String(unreadTotal > 99 ? '99+' : unreadTotal)
-              : tab.key === 'notifications' && unreadNotifications > 0
-              ? String(unreadNotifications > 99 ? '99+' : unreadNotifications)
+            tab.key === 'messages' && messagesUnread > 0
+              ? String(messagesUnread > 99 ? '99+' : messagesUnread)
+              : tab.key === 'notifications' && notificationsUnread > 0
+              ? String(notificationsUnread > 99 ? '99+' : notificationsUnread)
               : tab.badge
 
           return (
@@ -134,7 +111,10 @@ export function AppNavbar() {
               <i className={`fa-solid fa-${tab.icon}`}></i>
               <span>{tab.label}</span>
               {badge && (
-                <span className="absolute top-[-4px] right-[-4px] bg-[#06b6d4] text-white text-[10px] font-bold w-[16px] h-[16px] rounded-full flex items-center justify-center border border-white">
+                <span
+                  className="absolute top-[-4px] right-[-4px] bg-[#06b6d4] text-[11px] font-bold w-[16px] h-[16px] rounded-full flex items-center justify-center border border-white"
+                  style={{ color: '#ffffff' }}
+                >
                   {badge}
                 </span>
               )}
