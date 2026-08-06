@@ -1,6 +1,4 @@
-import type { FollowListUser } from '@/components/FollowListModal'
 import axios from 'axios'
-import { notifyUnreadChanged } from '@/lib/unreadEvents'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
 
@@ -9,17 +7,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1
 // instead of the frontend's own origin.
 const API_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, '')
 // ─── WebSocket ──────────────────────────────────────────
-// BP-11: previously derived by string-replacing "http" -> "ws" on the REST
-// API origin. That only works by coincidence when the socket happens to
-// terminate on the same host as the API - the moment WS moves behind its
-// own load balancer/domain, this silently builds the wrong URL and chat
-// falls back to (or gets stuck on) polling with no visible error.
-// NEXT_PUBLIC_WS_URL lets the two be configured independently; the old
-// derivation is kept only as a fallback for local dev where they match.
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || `${API_ORIGIN.replace(/^http/, 'ws')}/ws/chat`
-
 export function getChatWsUrl(): string {
-  return WS_URL
+  return `${API_ORIGIN.replace(/^http/, 'ws')}/ws/chat`
 }
 
 const api = axios.create({
@@ -192,29 +181,13 @@ export interface ProfileUpdatePayload {
 export const profileAPI = {
   getOwnProfile: () => api.get<Profile>('/users/me/profile'),
   getPublicProfile: (userId: string) => api.get<Profile>(`/users/${userId}/profile`),
-  updateProfile: (payload: ProfileUpdatePayload) => api.patch<Profile>('/users/me/profile', payload),
-  updateBio: (bio: string) => api.patch<Profile>('/users/me/profile', { bio }),
 
-  // NOTE: these previously pointed at `/profiles/${userId}/...`, a prefix
-  // that was never registered on the backend (only `/users/...` exists),
-  // so every one of these calls 404'd silently. Fixed to hit the real,
-  // already-working endpoints.
-  //
-  // `skip`/`limit` are optional so existing call sites that want the full
-  // list in one shot (e.g. ProfileView's friend-count fetch) keep working
-  // unchanged - axios omits params that are `undefined`. The FollowListModal
-  // passes both explicitly to page through results.
-  getFollowers: (userId: string, skip?: number, limit?: number) =>
-    api.get<FollowListUser[]>(`/users/${userId}/followers`, { params: { skip, limit } }),
-  getFollowing: (userId: string, skip?: number, limit?: number) =>
-    api.get<FollowListUser[]>(`/users/${userId}/following`, { params: { skip, limit } }),
-  getFriends: (userId: string, skip?: number, limit?: number) =>
-    api.get<FollowListUser[]>(`/users/${userId}/friends`, { params: { skip, limit } }),
-  // Total friend count, independent of the paginated list's page size -
-  // powers the profile's "Friends" stat (list length alone would cap at
-  // whatever page size the list endpoint returns).
-  getFriendsCount: (userId: string) =>
-    api.get<{ count: number }>(`/users/${userId}/friends/count`),
+  // Powers the Edit Profile modal - send only the fields that changed.
+  updateProfile: (payload: ProfileUpdatePayload) => api.patch<Profile>('/users/me/profile', payload),
+
+  // Kept as a thin convenience wrapper - some older call sites only
+  // ever touched bio.
+  updateBio: (bio: string) => api.patch<Profile>('/users/me/profile', { bio }),
 }
 
 // ─── Media ──────────────────────────────────────────────
@@ -349,7 +322,7 @@ export const followAPI = {
 
 // ─── Feed (following) ───────────────────────────────────
 export const feedAPI = {
-  getFollowingFeed: (skip = 0, limit = 2) =>
+  getFollowingFeed: (skip = 0, limit = 20) =>
     api.get<Post[]>('/posts/feed/following', { params: { skip, limit } }),
 }
 
@@ -404,10 +377,6 @@ export interface Message {
   updated_at?: string | null
   reactions?: MessageReaction[]
   attachments?: MessageAttachment[]
-  // BP-14: user ids (other than the sender) who have read this message -
-  // lets the client render a per-message ✓/✓✓ instead of only the
-  // conversation-level unread badge.
-  read_by?: string[]
 }
 export interface Conversation {
   id: string
@@ -430,14 +399,7 @@ export const conversationsAPI = {
       attachment_ids: attachmentIds,
     }),
   markRead: (conversationId: string) =>
-    api.post<{ marked_read: number }>(`/conversations/${conversationId}/read`).then((res) => {
-      // See lib/unreadEvents.ts - this is the single place every mark-read
-      // call in the app goes through, so it's the right place to fire the
-      // "unread state changed" signal rather than scattering the call
-      // across every screen that happens to call markRead.
-      notifyUnreadChanged()
-      return res
-    }),
+    api.post<{ marked_read: number }>(`/conversations/${conversationId}/read`),
   unreadCount: (conversationId: string) =>
     api.get<{ conversation_id: string; unread_count: number }>(`/conversations/${conversationId}/unread-count`),
 
@@ -546,6 +508,24 @@ export interface AdminStats {
   comments_by_day: DailyCount[]
 }
 
+export interface AuditLog {
+  id: string
+  admin_id: string
+  action: string
+  entity_type: string
+  entity_id: string
+  previous_data: Record<string, any> | null
+  new_data: Record<string, any> | null
+  reason: string | null
+  ip_address: string | null
+  created_at: string
+}
+
+export interface AuditLogListResponse {
+  total: number
+  items: AuditLog[]
+}
+
 export const adminAPI = {
   ping: () => api.get<{ message: string }>('/admin/ping'),
 
@@ -575,4 +555,16 @@ export const adminAPI = {
 
   // ── Stats (wired now for Slice E later) ──
   getStats: (days = 30) => api.get<AdminStats>('/admin/stats', { params: { days } }),
+
+  // ── Audit Logs ──
+  listAuditLogs: (params: {
+    skip?: number
+    limit?: number
+    action?: string
+    admin_id?: string
+    entity_type?: string
+    entity_id?: string
+  }) => api.get<AuditLogListResponse>('/admin/audit-logs', { params }),
+
+  getAuditLog: (logId: string) => api.get<AuditLog>(`/admin/audit-logs/${logId}`),
 }

@@ -13,6 +13,7 @@ interface AdminNavItem {
 const NAV_ITEMS: AdminNavItem[] = [
   { key: 'users', label: 'Users', href: '/admin/users', icon: 'users' },
   { key: 'posts', label: 'Posts', href: '/admin/posts', icon: 'file-lines' },
+  { key: 'audit-logs', label: 'Audit Logs', href: '/admin/audit-logs', icon: 'clipboard-list' },
   { key: 'stats', label: 'Stats', href: '/admin/stats', icon: 'chart-line' },
 ]
 

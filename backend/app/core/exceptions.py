@@ -102,3 +102,7 @@ class AttachmentNotFoundException(HTTPException):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="One or more attachments were not found or were already sent with another message",
         )
+        
+class AuditLogNotFoundException(HTTPException):
+    def __init__(self):
+        super().__init__(status_code=404, detail="Audit log not found")

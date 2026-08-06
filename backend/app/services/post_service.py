@@ -302,18 +302,46 @@ class PostService:
         return total, posts
 
     @staticmethod
-    def admin_update_post(db: Session, post_id: uuid.UUID, post_update: PostUpdate) -> Post:
+    def admin_update_post(db: Session, post_id: uuid.UUID, post_update: PostUpdate, admin_id: uuid.UUID, ip_address: Optional[str] = None) -> Post:
+        from app.services.audit_log_service import AuditLogService
+
         post = PostService.admin_get_post_or_404(db, post_id)
+
+        # Capture previous state
+        previous_data = AuditLogService.capture_post_data(post)
+
         post.content = post_update.content
         db.add(post)
+        db.flush()
+
+        # Capture new state
+        new_data = AuditLogService.capture_post_data(post)
+
+        # Log the action
+        AuditLogService.log_action(
+            db,
+            admin_id=admin_id,
+            action="post_edit",
+            entity_type="post",
+            entity_id=post_id,
+            previous_data=previous_data,
+            new_data=new_data,
+            ip_address=ip_address,
+        )
+
         db.commit()
         db.refresh(post)
         return post
 
     @staticmethod
-    def admin_delete_post(db: Session, post_id: uuid.UUID) -> Post:
+    def admin_delete_post(db: Session, post_id: uuid.UUID, admin_id: uuid.UUID, ip_address: Optional[str] = None) -> Post:
+        from app.services.audit_log_service import AuditLogService
+
         post = PostService.admin_get_post_or_404(db, post_id)
         if post.status != PostStatus.deleted:
+            # Capture previous state
+            previous_data = AuditLogService.capture_post_data(post)
+
             post.status = PostStatus.deleted
             post.deleted_at = datetime.utcnow()
             db.add(post)
@@ -322,6 +350,23 @@ class PostService:
             if profile and profile.post_count > 0:
                 profile.post_count -= 1
                 db.add(profile)
+
+            db.flush()
+
+            # Capture new state
+            new_data = AuditLogService.capture_post_data(post)
+
+            # Log the action
+            AuditLogService.log_action(
+                db,
+                admin_id=admin_id,
+                action="post_delete",
+                entity_type="post",
+                entity_id=post_id,
+                previous_data=previous_data,
+                new_data=new_data,
+                ip_address=ip_address,
+            )
 
             db.commit()
         db.refresh(post)

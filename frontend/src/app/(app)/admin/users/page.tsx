@@ -20,6 +20,9 @@ const OUTLINE_BTN =
 const DANGER_BTN =
   'px-[12px] py-[6px] text-[12px] font-[600] text-[#ef4444] bg-white border border-[#fecaca] rounded-[8px] cursor-pointer hover:bg-[#fef2f2] disabled:opacity-50 disabled:cursor-not-allowed'
 
+const CONFIRM_BTN_BASE =
+  'px-[14px] py-[7px] text-[13px] font-[700] border-none rounded-[8px] cursor-pointer disabled:opacity-60'
+
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     active: 'bg-[#dcfce7] text-[#166534]',
@@ -50,6 +53,69 @@ function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+// ─── Confirmation Modal ───────────────────────────────────────────────────────
+
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  confirmColor,
+  onConfirm,
+  onCancel,
+}: {
+  title: string
+  message: string
+  confirmLabel: string
+  confirmColor: string
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) onCancel()
+  }
+
+  if (!mounted) return null
+
+  return createPortal(
+    <div
+      className="fixed inset-[0px] bg-[rgba(15,23,42,0.5)] flex items-center justify-center z-[9999] p-[16px]"
+      onClick={handleBackdropClick}
+      role="presentation"
+    >
+      <div
+        style={{ backgroundColor: '#ffffff' }}
+        className="rounded-[14px] shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-full max-w-[380px] p-[24px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-[16px] font-[700] text-[#0f172a] mb-[8px]">{title}</h3>
+        <p className="text-[13px] text-[#64748b] mb-[24px] leading-[1.5]">{message}</p>
+        <div className="flex justify-end gap-[8px]">
+          <button type="button" onClick={onCancel} className={OUTLINE_BTN}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{ backgroundColor: confirmColor, color: '#ffffff' }}
+            className={CONFIRM_BTN_BASE}
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ─── Edit User Modal ──────────────────────────────────────────────────────────
+
 function EditUserModal({
   user,
   onClose,
@@ -65,7 +131,6 @@ function EditUserModal({
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
-  // Ensure portal rendering occurs only on the client side (prevents Next.js SSR hydration error)
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -78,7 +143,6 @@ function EditUserModal({
     if (trimmedUsername !== user.username) payload.username = trimmedUsername
     if (role !== user.role) payload.role = role as 'user' | 'admin'
 
-    // If no changes were made, close modal without making an API request
     if (Object.keys(payload).length === 0) {
       onClose()
       return
@@ -97,21 +161,20 @@ function EditUserModal({
   }
 
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
+    if (e.target === e.currentTarget) onClose()
   }
 
   if (!mounted) return null
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-[rgba(15,23,42,0.5)] flex items-center justify-center z-[9999] p-[16px]"
+      className="fixed inset-[0px] bg-[rgba(15,23,42,0.5)] flex items-center justify-center z-[9999] p-[16px]"
       onClick={handleBackdropClick}
       role="presentation"
     >
       <div
-        className="bg-white rounded-[14px] shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-full max-w-[400px] p-[20px]"
+        style={{ backgroundColor: '#ffffff' }}
+        className="rounded-[14px] shadow-[0_20px_40px_rgba(0,0,0,0.15)] w-full max-w-[400px] p-[24px]"
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-[16px] font-[700] text-[#0f172a] mb-[16px]">Edit user</h3>
@@ -130,6 +193,7 @@ function EditUserModal({
           minLength={3}
           maxLength={100}
           placeholder="Minimum 3 characters"
+          style={{ backgroundColor: '#ffffff', color: '#0f172a' }}
           className="w-full px-[12px] py-[8px] border border-[#e2e8f0] rounded-[8px] text-[14px] outline-none focus:border-[#5B52E7] mb-[14px]"
         />
 
@@ -137,7 +201,8 @@ function EditUserModal({
         <select
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          className={`${SELECT_CLASSES} w-full mb-[20px]`}
+          style={{ backgroundColor: '#ffffff', color: '#374151' }}
+          className={`${SELECT_CLASSES} w-full mb-[24px]`}
         >
           <option value="user">user</option>
           <option value="admin">admin</option>
@@ -151,7 +216,8 @@ function EditUserModal({
             type="button"
             onClick={handleSave}
             disabled={saving || (username.trim().length > 0 && username.trim().length < 3)}
-            className="px-[14px] py-[7px] text-[12px] font-[700] text-white bg-[#5B52E7] hover:bg-[#4C43D4] border-none rounded-[8px] cursor-pointer disabled:opacity-60"
+            style={{ backgroundColor: '#5B52E7', color: '#ffffff' }}
+            className={CONFIRM_BTN_BASE}
           >
             {saving ? 'Saving...' : 'Save changes'}
           </button>
@@ -161,6 +227,8 @@ function EditUserModal({
     document.body
   )
 }
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AdminUsersPage() {
   const { user: currentUser } = useAuthStore()
@@ -176,6 +244,15 @@ export default function AdminUsersPage() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
+
+  // ─── Confirmation modal state ───────────────────────────────────────────────
+  const [confirm, setConfirm] = useState<{
+    title: string
+    message: string
+    confirmLabel: string
+    confirmColor: string
+    onConfirm: () => void
+  } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -213,11 +290,15 @@ export default function AdminUsersPage() {
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)))
   }
 
-  const handleBlockToggle = async (target: AdminUser) => {
+  // ─── Block / Unblock ────────────────────────────────────────────────────────
+
+  const doBlockToggle = async (target: AdminUser) => {
     setBusyId(target.id)
     try {
       const res =
-        target.status === 'blocked' ? await adminAPI.unblockUser(target.id) : await adminAPI.blockUser(target.id)
+        target.status === 'blocked'
+          ? await adminAPI.unblockUser(target.id)
+          : await adminAPI.blockUser(target.id)
       replaceUser(res.data)
       setToast({
         message: res.data.status === 'blocked' ? `${res.data.username} blocked.` : `${res.data.username} unblocked.`,
@@ -230,8 +311,25 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleDelete = async (target: AdminUser) => {
-    if (!window.confirm(`Delete ${target.username}? This is a soft delete and can be reviewed later.`)) return
+  const handleBlockToggle = (target: AdminUser) => {
+    const isBlocked = target.status === 'blocked'
+    setConfirm({
+      title: isBlocked ? `Unblock ${target.username}?` : `Block ${target.username}?`,
+      message: isBlocked
+        ? `${target.username} will regain access to the platform.`
+        : `${target.username} will lose access to the platform until unblocked.`,
+      confirmLabel: isBlocked ? 'Unblock' : 'Block',
+      confirmColor: '#5B52E7',
+      onConfirm: () => {
+        setConfirm(null)
+        doBlockToggle(target)
+      },
+    })
+  }
+
+  // ─── Delete ─────────────────────────────────────────────────────────────────
+
+  const doDelete = async (target: AdminUser) => {
     setBusyId(target.id)
     try {
       const res = await adminAPI.deleteUser(target.id)
@@ -242,6 +340,19 @@ export default function AdminUsersPage() {
     } finally {
       setBusyId(null)
     }
+  }
+
+  const handleDelete = (target: AdminUser) => {
+    setConfirm({
+      title: `Delete ${target.username}?`,
+      message: `This is a soft delete — the account can still be reviewed later. The user will immediately lose access.`,
+      confirmLabel: 'Delete',
+      confirmColor: '#5B52E7',
+      onConfirm: () => {
+        setConfirm(null)
+        doDelete(target)
+      },
+    })
   }
 
   const from = total === 0 ? 0 : skip + 1
@@ -392,6 +503,17 @@ export default function AdminUsersPage() {
             setEditingUser(null)
             setToast({ message: `${updated.username} updated.`, variant: 'success' })
           }}
+        />
+      )}
+
+      {confirm && (
+        <ConfirmModal
+          title={confirm.title}
+          message={confirm.message}
+          confirmLabel={confirm.confirmLabel}
+          confirmColor={confirm.confirmColor}
+          onConfirm={confirm.onConfirm}
+          onCancel={() => setConfirm(null)}
         />
       )}
 

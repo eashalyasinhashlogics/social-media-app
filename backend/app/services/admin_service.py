@@ -1,6 +1,7 @@
 ﻿import uuid
 from datetime import datetime, timedelta
 from typing import Optional, List, Tuple
+from fastapi import Request
 
 from sqlalchemy import cast, Date, func
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from app.models.refresh_token import RefreshToken
 from app.db.enums import UserRole, UserStatus, PostStatus
 from app.core.exceptions import UserNotFoundException
 from app.schemas.admin import AdminUserUpdate
+from app.services.audit_log_service import AuditLogService
 
 
 class AdminService:
@@ -42,13 +44,39 @@ class AdminService:
         return user
 
     @staticmethod
-    def update_user(db: Session, user_id: uuid.UUID, payload: AdminUserUpdate) -> User:
+    def update_user(db: Session, user_id: uuid.UUID, payload: AdminUserUpdate, admin_id: uuid.UUID, ip_address: Optional[str] = None) -> User:
         user = AdminService.get_user_or_404(db, user_id)
-        if payload.username is not None:
+        
+        # Capture previous state
+        previous_data = AuditLogService.capture_user_data(user)
+        changes = {}
+        
+        if payload.username is not None and payload.username != user.username:
+            changes["username"] = payload.username
             user.username = payload.username
-        if payload.role is not None:
+        if payload.role is not None and payload.role != user.role:
+            changes["role"] = payload.role.value
             user.role = payload.role
-        db.add(user)
+        
+        if changes:
+            db.add(user)
+            db.flush()
+            
+            # Capture new state
+            new_data = AuditLogService.capture_user_data(user)
+            
+            # Log the action
+            AuditLogService.log_action(
+                db,
+                admin_id=admin_id,
+                action="user_edit",
+                entity_type="user",
+                entity_id=user_id,
+                previous_data=previous_data,
+                new_data=new_data,
+                ip_address=ip_address,
+            )
+        
         db.commit()
         db.refresh(user)
         return user
@@ -61,36 +89,99 @@ class AdminService:
         ).update({"revoked": True}, synchronize_session=False)
 
     @staticmethod
-    def block_user(db: Session, user_id: uuid.UUID) -> User:
+    def block_user(db: Session, user_id: uuid.UUID, admin_id: uuid.UUID, ip_address: Optional[str] = None) -> User:
         user = AdminService.get_user_or_404(db, user_id)
+        
+        # Capture previous state
+        previous_data = AuditLogService.capture_user_data(user)
+        
         user.status = UserStatus.blocked
         db.add(user)
         AdminService._revoke_all_sessions(db, user_id)
+        db.flush()
+        
+        # Capture new state
+        new_data = AuditLogService.capture_user_data(user)
+        
+        # Log the action
+        AuditLogService.log_action(
+            db,
+            admin_id=admin_id,
+            action="user_block",
+            entity_type="user",
+            entity_id=user_id,
+            previous_data=previous_data,
+            new_data=new_data,
+            ip_address=ip_address,
+        )
+        
         db.commit()
         db.refresh(user)
         return user
 
     @staticmethod
-    def unblock_user(db: Session, user_id: uuid.UUID) -> User:
+    def unblock_user(db: Session, user_id: uuid.UUID, admin_id: uuid.UUID, ip_address: Optional[str] = None) -> User:
         user = AdminService.get_user_or_404(db, user_id)
+        
+        # Capture previous state
+        previous_data = AuditLogService.capture_user_data(user)
+        
         user.status = UserStatus.active
         db.add(user)
+        db.flush()
+        
+        # Capture new state
+        new_data = AuditLogService.capture_user_data(user)
+        
+        # Log the action
+        AuditLogService.log_action(
+            db,
+            admin_id=admin_id,
+            action="user_unblock",
+            entity_type="user",
+            entity_id=user_id,
+            previous_data=previous_data,
+            new_data=new_data,
+            ip_address=ip_address,
+        )
+        
         db.commit()
         db.refresh(user)
         return user
 
     @staticmethod
-    def soft_delete_user(db: Session, user_id: uuid.UUID) -> User:
+    def soft_delete_user(db: Session, user_id: uuid.UUID, admin_id: uuid.UUID, ip_address: Optional[str] = None) -> User:
         user = AdminService.get_user_or_404(db, user_id)
+        
+        # Capture previous state
+        previous_data = AuditLogService.capture_user_data(user)
+        
         user.status = UserStatus.deleted
         user.deleted_at = datetime.utcnow()
         db.add(user)
         AdminService._revoke_all_sessions(db, user_id)
+        db.flush()
+        
+        # Capture new state
+        new_data = AuditLogService.capture_user_data(user)
+        
+        # Log the action
+        AuditLogService.log_action(
+            db,
+            admin_id=admin_id,
+            action="user_delete",
+            entity_type="user",
+            entity_id=user_id,
+            previous_data=previous_data,
+            new_data=new_data,
+            ip_address=ip_address,
+        )
+        
         db.commit()
         db.refresh(user)
         return user
 
-    # ── Stats dashboard (Slice 6) ─────────────────────────────────────
+    # ── Stats dashboard ─────────────────────────────────────
 
     @staticmethod
     def _count_by_day(db: Session, ts_column, cutoff: datetime, extra_filters: Optional[list] = None) -> List[dict]:
