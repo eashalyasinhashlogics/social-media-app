@@ -1,0 +1,11 @@
+services:
+  app:
+    build: !reset null
+    image: ${DOCKER_IMAGE}
+    ports: !override
+      - "127.0.0.1:8000:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
+              "--proxy-headers", "--forwarded-allow-ips", "*"]
+
+  postgres:
+    ports: !reset []
