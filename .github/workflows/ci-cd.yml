@@ -30,13 +30,26 @@ jobs:
       # Added: GitHub-hosted runners can hit memory pressure during heavy
       # operations (alembic's autogenerate-style diff in particular). Swap
       # gives the kernel headroom instead of SIGKILLing the process (exit 137).
-      - name: Add swap space
+      #
+      # ubuntu-latest images already ship with a swapfile active at boot, so
+      # blindly fallocate-ing /swapfile fails with "Text file busy" (the
+      # kernel has that file mapped as live swap). Check first, and if one
+      # already exists, only create an additional file at a different path
+      # rather than touching the existing one.
+      - name: Ensure swap space
         run: |
-          sudo fallocate -l 4G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          free -h
+          echo "Swap before:"; free -h
+          if sudo swapon --show | grep -q .; then
+            echo "Swap already active on this runner — leaving it as is."
+          else
+            SWAPFILE=/mnt/swapfile-ci
+            sudo fallocate -l 4G "$SWAPFILE" 2>/dev/null || \
+              sudo dd if=/dev/zero of="$SWAPFILE" bs=1M count=4096
+            sudo chmod 600 "$SWAPFILE"
+            sudo mkswap "$SWAPFILE"
+            sudo swapon "$SWAPFILE"
+          fi
+          echo "Swap after:"; free -h
 
       - name: Resolve image name
         id: image
