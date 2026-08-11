@@ -1,0 +1,16 @@
+# Local development overlay. Use alongside the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# Everything here is deliberately kept OUT of docker-compose.yml, because the
+# server loads the base file (plus docker-compose.prod.yml) and must never get
+# a source bind mount — on the instance the deploy directory holds only compose
+# files, so mounting it over /app would delete the app from the container's view.
+
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+    # --reload picks up edits without a rebuild. Overriding `command` keeps the
+    # image ENTRYPOINT, so entrypoint.sh still runs `alembic upgrade head` first.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

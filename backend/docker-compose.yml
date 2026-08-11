@@ -1,38 +1,78 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Locally this names the image built from source; in production CI sets
+    # DOCKER_IMAGE to the GHCR tag and the prod overlay's `build: !reset null`
+    # makes this same file pull instead of build. Without an explicit `image:`
+    # the build would be named `<project>-app` — `container_name` is not an
+    # image name, and the CI tag step depends on this.
+    image: ${DOCKER_IMAGE:-social-media-api:latest}
+    container_name: social-media-api
+    ports:
+      - "8000:8000"
+    # `environment` takes precedence over `env_file`. .env holds a host-facing
+    # DATABASE_URL for native runs (uvicorn against localhost); inside the
+    # compose network the host is `postgres`, so it must be rewritten here.
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-socialmedia}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-social_media_dev}
+    # Everything else — SECRET_KEY, SMTP, S3, OAuth, CORS_ORIGINS — comes from
+    # .env. Without this the app boots with config.py's dev fallbacks, most
+    # dangerously SECRET_KEY="dev-secret-key-change-in-production".
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        # Wait for readiness, not just container start: entrypoint.sh runs
+        # `alembic upgrade head` immediately and would fail against a Postgres
+        # that is still initializing.
+        condition: service_healthy
+    healthcheck:
+      # `python -c` rather than curl — not present in the slim image.
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # Covers `alembic upgrade head` on a cold database.
+      start_period: 30s
+    networks:
+      - social-media-network
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: social-media-postgres
-    restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-socialmedia}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secretpassword}
       POSTGRES_DB: ${POSTGRES_DB:-social_media_dev}
     ports:
-      - "5432:5432"
+      # Host 5432 belongs to the native postgres cluster, 5433 and 5434 to other
+      # local projects — publish on 5435 so this stack can run alongside them.
+      # The app still reaches it as postgres:5432 over the compose network, and
+      # the prod overlay drops this mapping entirely.
+      - "5435:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-socialmedia} -d ${POSTGRES_DB:-social_media_dev}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    networks:
+      - social-media-network
+    restart: unless-stopped
 
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: social-media-api
-    restart: always
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-socialmedia}:${POSTGRES_PASSWORD:-secretpassword}@postgres:5432/${POSTGRES_DB:-social_media_dev}
-      - CORS_ORIGINS=http://localhost:3000
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - .:/app
+# NOTE: there is deliberately no `volumes: - .:/app` bind mount here. Live
+# reload lives in docker-compose.dev.yml. The server loads this file plus the
+# prod overlay, and a bind mount here would mask /app with the deploy
+# directory — which holds only compose files, no app code and no entrypoint.
 
 volumes:
   postgres_data:
+
+networks:
+  social-media-network:
+    driver: bridge

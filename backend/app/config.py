@@ -20,9 +20,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 15
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 # CORS settings
+#
+# Comma-separated in the environment so the deployed frontend origin can be set
+# per-environment without a code change; the default keeps local development
+# working exactly as before.
+#   CORS_ORIGINS=https://social-media-app.vercel.app
 CORS_ORIGINS = [
-    "http://localhost:3000",  # Next.js development
-    "http://localhost:8000",  # FastAPI development
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://localhost:8000",  # Next.js / FastAPI dev
+    ).split(",")
+    if origin.strip()
 ]
 
 # Email settings (for OTP)

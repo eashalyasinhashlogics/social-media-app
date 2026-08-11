@@ -1,5 +1,5 @@
-# Match the Python version you develop against locally.
-FROM python:3.11-slim
+# Match the Python version you develop against locally (venv is 3.12.3).
+FROM python:3.12-slim
 
 WORKDIR /app
 

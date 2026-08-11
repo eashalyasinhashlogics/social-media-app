@@ -1,11 +1,43 @@
+# Production overlay. Use alongside the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Requires DOCKER_IMAGE to be exported (the CI deploy job does this):
+#   export DOCKER_IMAGE=ghcr.io/<owner>/<repo>-backend:latest
+#
+# TLS is NOT handled here. nginx is installed on the host with apt and holds
+# the certificate.
+
 services:
   app:
+    # The server pulls a published image; it never has a build context.
     build: !reset null
-    image: ${DOCKER_IMAGE}
+
+    # Loopback only. The base file publishes "8000:8000", which binds 0.0.0.0
+    # and puts the API straight on the internet, bypassing TLS entirely no
+    # matter what the security group says.
+    #
+    # `!override` rather than a plain value: compose *appends* port lists across
+    # files, so without it the 0.0.0.0 binding from the base file would survive
+    # alongside this one and the lockdown would be silently undone.
     ports: !override
       - "127.0.0.1:8000:8000"
+
+    # Defence in depth. The base file has no bind mount today, but if one is
+    # ever added back for local convenience it would mask /app on the server
+    # with the deploy directory (compose files only — no app code, no
+    # entrypoint.sh, no alembic) and the container would die on boot.
+    volumes: !reset []
+
+    # Trust nginx's X-Forwarded-* so FastAPI builds https:// URLs and logs the
+    # real client IP. Overriding `command` keeps the image ENTRYPOINT, so
+    # entrypoint.sh still runs `alembic upgrade head` first.
+    #
+    # --forwarded-allow-ips "*" is safe only because of the loopback binding
+    # above: the sole client is nginx on this host.
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
               "--proxy-headers", "--forwarded-allow-ips", "*"]
 
   postgres:
+    # The base file publishes 5432 for local convenience. On a public instance
+    # that would expose the database to anything the security group allows.
     ports: !reset []
