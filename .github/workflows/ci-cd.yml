@@ -197,10 +197,24 @@ jobs:
           ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes \
               "$EC2_USER@$EC2_HOST" 'bash -s' <<EOF
           set -euo pipefail
-          cd "$DEPLOY_PATH"
+
+          # cd, not just a existence test: an empty or wrong EC2_DEPLOY_PATH
+          # would otherwise leave us in the SSH login directory silently
+          # ("cd \"\"" is a successful no-op in bash).
+          cd "$DEPLOY_PATH" || { echo "ERROR: cannot cd to the deploy path." >&2; exit 1; }
 
           if [ ! -f .env ]; then
-            echo "ERROR: $DEPLOY_PATH/.env is missing on the instance." >&2
+            # The path is masked in the log because it is a secret, which makes
+            # a bare failure impossible to diagnose. Dump where we actually
+            # landed and where .env really lives — neither is masked.
+            echo "ERROR: .env is missing in the deploy path." >&2
+            echo "--- landed in ---" >&2
+            pwd >&2
+            echo "--- contents ---" >&2
+            ls -la >&2
+            echo "--- .env files under /home/ubuntu ---" >&2
+            find /home/ubuntu -maxdepth 4 -name .env -not -path '*/node_modules/*' 2>/dev/null >&2
+            echo "Set EC2_DEPLOY_PATH to the directory listed above." >&2
             exit 1
           fi
 
