@@ -1,0 +1,40 @@
+# Virtual environment — yours is already ~tens of MB and would otherwise
+# get copied straight into the build context.
+venv/
+.venv/
+env/
+
+# VCS / CI
+.git/
+.gitignore
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+migrations/versions/__pycache__/
+
+# Test/tooling caches present in your repo
+.pytest_cache/
+.hypothesis/
+.schemathesis/
+.coverage
+htmlcov/
+
+# Secrets — injected at runtime via compose's env_file, never baked into
+# an image layer that anyone who pulls the image could read.
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# IDE/editor
+.vscode/
+.idea/
+.DS_Store

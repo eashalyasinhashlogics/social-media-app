@@ -21,7 +21,7 @@ const TABS: Tab[] = [
   { key: 'explore', label: 'Explore', href: '/explore', icon: 'compass' },
   { key: 'messages', label: 'Messages', href: '/messages', icon: 'comment-dots' },
   { key: 'notifications', label: 'Notifications', href: '/notifications', icon: 'bell' },
-  { key: 'communities', label: 'Communities', href: '/communities', icon: 'users' },
+  //{ key: 'communities', label: 'Communities', href: '/communities', icon: 'users' },
   { key: 'profile', label: 'Profile', href: '/profile', icon: 'user' },
 ]
 

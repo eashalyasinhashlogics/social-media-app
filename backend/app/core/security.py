@@ -9,7 +9,8 @@ from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, REFRE
 pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    truncated_password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    return pwd_context.hash(truncated_password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
