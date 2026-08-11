@@ -25,6 +25,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  # Public hostname the API is served on. Not a secret — it is also hardcoded
+  # in backend/deploy/nginx/social-app.conf, which is committed.
+  API_URL: https://socialappfomo.duckdns.org
+  API_DOMAIN: socialappfomo.duckdns.org
 
 # Deploys must not overlap. Queue a second push behind the first rather than
 # cancelling it — a half-finished deploy is worse than a slow one.
@@ -197,16 +201,23 @@ jobs:
           DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_deploy "$EC2_USER@$EC2_HOST" "mkdir -p '$DEPLOY_PATH'"
-          # Only the compose files. Phase 3 adds backend/scripts and
-          # backend/deploy (nginx config + TLS setup) and restores the
-          # rm -rf / chmod +x handling those directories need.
-          #
-          # docker-compose.prod.yml is shipped now even though Phase 2 does not
-          # use it, so it is already in place when Phase 3 switches over.
-          scp -i ~/.ssh/id_deploy \
+          # Clear these two first rather than copying over them: a recursive
+          # copy merges, so a file deleted from the repo would linger on the
+          # instance. Removing them makes the deployed tree match the commit.
+          ssh -i ~/.ssh/id_deploy "$EC2_USER@$EC2_HOST" \
+            "mkdir -p '$DEPLOY_PATH' && rm -rf '$DEPLOY_PATH/scripts' '$DEPLOY_PATH/deploy'"
+          # scripts/ and deploy/ are shipped so the TLS setup is on the box when
+          # it is needed. Note this only touches $DEPLOY_PATH — the LIVE nginx
+          # config at /etc/nginx/sites-available/social-app is never written by
+          # CI, because certbot rewrites that file to add the TLS block and
+          # overwriting it here would break HTTPS on every deploy.
+          scp -r -i ~/.ssh/id_deploy \
             backend/docker-compose.yml backend/docker-compose.prod.yml \
+            backend/scripts backend/deploy \
             "$EC2_USER@$EC2_HOST:$DEPLOY_PATH/"
+          # scp does not reliably carry the executable bit across versions.
+          ssh -i ~/.ssh/id_deploy "$EC2_USER@$EC2_HOST" \
+            "chmod +x '$DEPLOY_PATH'/scripts/*.sh"
 
       - name: Deploy over SSH
         env:
@@ -246,26 +257,33 @@ jobs:
 
           export DOCKER_IMAGE="$IMAGE:latest"
 
-          # Base file only in Phase 2, so the app stays published on
-          # 0.0.0.0:8000 and remains reachable while there is no nginx in
-          # front of it. Phase 3 adds -f docker-compose.prod.yml, which moves
-          # it to 127.0.0.1 and hands the public port to nginx.
+          # The prod overlay binds the app to 127.0.0.1:8000 and adds
+          # --proxy-headers, so nginx on the host owns the public port. That
+          # loopback binding is what makes --forwarded-allow-ips "*" safe: the
+          # only client that can reach uvicorn is nginx on this machine.
           #
-          # --no-build because the base file still carries a build: section
-          # and DEPLOY_PATH has no Dockerfile — without it a failed pull
-          # silently degrades into an attempted build instead of failing.
-          docker compose pull app
-          docker compose up -d --no-build
+          # --no-build because the base file still carries a build: section and
+          # DEPLOY_PATH has no Dockerfile — without it a failed pull silently
+          # degrades into an attempted build instead of failing.
+          COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+
+          \$COMPOSE pull app
+          \$COMPOSE up -d --no-build
           docker image prune -f
 
           docker logout ghcr.io
+
+          if ! systemctl is-active --quiet nginx; then
+            echo "WARNING: host nginx is not running — HTTPS will fail." >&2
+            echo "  Run the 'Set up nginx + TLS' workflow, or on the box:" >&2
+            echo "  cd $DEPLOY_PATH && EMAIL=you@example.com ./scripts/setup-nginx-tls.sh" >&2
+          fi
           EOF
 
-      # Checked over SSH against loopback rather than over the public internet:
-      # the security group does not need port 8000 opened to GitHub's rotating
-      # runner IPs, and this step keeps working unchanged when Phase 3 moves
-      # the app behind nginx and closes 8000 entirely.
-      - name: Verify the deployed API is healthy
+      # Two checks, deliberately separate. This one runs over SSH against
+      # loopback, so it isolates "the app is broken" from "nginx/TLS is broken"
+      # — and it needs no inbound port open to GitHub's rotating runner IPs.
+      - name: Verify the app is healthy on the instance
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
@@ -276,6 +294,7 @@ jobs:
               "$EC2_USER@$EC2_HOST" 'bash -s' <<EOF
           set -euo pipefail
           cd "$DEPLOY_PATH"
+          COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
           for i in \$(seq 1 20); do
             if curl -fsS -m 5 http://127.0.0.1:8000/health | grep -q '"status":"ok"'; then
@@ -283,9 +302,9 @@ jobs:
               # Migrations are the likeliest silent failure: the container can
               # answer /health perfectly well while sitting on a stale schema,
               # so assert head rather than just printing the revision.
-              if ! docker compose exec -T app alembic current 2>/dev/null | grep -q '(head)'; then
+              if ! \$COMPOSE exec -T app alembic current 2>/dev/null | grep -q '(head)'; then
                 echo "ERROR: alembic is not at head after deploy." >&2
-                docker compose exec -T app alembic current
+                \$COMPOSE exec -T app alembic current
                 exit 1
               fi
               echo "Migrations are at head."
@@ -295,7 +314,37 @@ jobs:
           done
 
           echo "API did not become healthy after deploy." >&2
-          docker compose ps
-          docker compose logs --tail 50 app
+          \$COMPOSE ps
+          \$COMPOSE logs --tail 50 app
           exit 1
           EOF
+
+      # And this one from the outside, which is the only way to catch nginx
+      # being down, the cert having expired, or the proxy pointing at a dead
+      # port — none of which the loopback check above can see.
+      - name: Verify HTTPS from outside
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl -fsS -m 10 "$API_URL/health" | grep -q '"status":"ok"'; then
+              echo "HTTPS healthy — HTTP/$(curl -s -o /dev/null -w '%{http_version}' "$API_URL/health")"
+              exit 0
+            fi
+            echo "waiting for HTTPS... ($i/10)"; sleep 5
+          done
+          echo "::error::API is healthy on the instance but not reachable over HTTPS."
+          echo "nginx is probably not running, or TLS was never set up." >&2
+          echo "Run the 'Set up nginx + TLS' workflow." >&2
+          curl -sS -m 10 -o /dev/null -w 'final attempt: HTTP %{http_code}\n' "$API_URL/health" || true
+          exit 1
+
+      - name: Check the certificate is valid and not near expiry
+        run: |
+          echo | openssl s_client -connect "$API_DOMAIN:443" -servername "$API_DOMAIN" 2>/dev/null \
+            | openssl x509 -noout -issuer -subject -dates
+          # Renewal is automatic via certbot.timer; this is the canary for the
+          # timer having silently stopped. 14 days leaves room to react.
+          if ! echo | openssl s_client -connect "$API_DOMAIN:443" -servername "$API_DOMAIN" 2>/dev/null \
+               | openssl x509 -noout -checkend 1209600 >/dev/null; then
+            echo "::warning::TLS certificate for $API_DOMAIN expires within 14 days."
+          fi
