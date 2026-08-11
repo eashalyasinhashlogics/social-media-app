@@ -12,6 +12,17 @@ on:
         type: boolean
         default: false
 
+# Two ways to skip the ~11-minute build+test pass while iterating on the deploy
+# step itself:
+#
+#   1. Actions -> Run workflow -> tick "skip_tests"   (no push needed)
+#   2. Put [skip tests] in the commit message         (works on a normal push)
+#
+# Both deploy whatever :latest already points at in GHCR, so neither publishes a
+# new image — change application code and you need one full run before a skipped
+# one means anything. Deliberately NOT GitHub's built-in [skip ci], which
+# cancels the whole run including the deploy.
+
 env:
   REGISTRY: ghcr.io
 
@@ -49,7 +60,7 @@ jobs:
       # TOTAL using a separate file, so we always get real extra headroom no
       # matter what the runner starts with.
       - name: Ensure swap space
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: |
           echo "Swap before:"; free -h; sudo swapon --show
           TARGET_SWAP_MB=8192
@@ -75,7 +86,7 @@ jobs:
           echo "name=${REGISTRY}/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')-backend" >> "$GITHUB_OUTPUT"
 
       - name: Write a throwaway .env for the test stack
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: |
           cat > .env <<'EOF'
           POSTGRES_USER=ci
@@ -86,21 +97,21 @@ jobs:
           EOF
 
       - name: Build image
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: docker compose build app
 
       - name: Start stack
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: docker compose up -d --wait --wait-timeout 180
 
       # Split into two steps (was one combined step) so a failure tells you
       # exactly which command died, instead of both being lumped together.
       - name: Assert alembic is at head
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: docker compose exec -T app alembic current
 
       - name: Assert no model/migration drift
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: docker compose exec -T app alembic check
 
       # Added: if it dies again, this tells you whether it was really memory
@@ -113,14 +124,14 @@ jobs:
           docker stats --no-stream
 
       - name: Assert API responds
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: |
           curl -fsS http://127.0.0.1:8000/ | grep -q "Welcome to Social Media API"
           curl -fsS http://127.0.0.1:8000/health | grep -q '"status":"ok"'
           curl -fsS -o /dev/null http://127.0.0.1:8000/docs
 
       - name: Run the backend test suite (exercises auth, admin, etc.)
-        if: ${{ inputs.skip_tests != true }}
+        if: ${{ inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: |
           docker compose exec -T \
             -e TEST_DATABASE_URL="postgresql://ci:ci-test-password@postgres:5432/social_media_ci_test" \
@@ -131,13 +142,13 @@ jobs:
         run: docker compose logs
 
       - name: Tear down
-        if: ${{ always() && inputs.skip_tests != true }}
+        if: ${{ always() && inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: docker compose down -v
 
       # --- publish (main only; PRs stop at the smoke test) ---
 
       - name: Log in to GHCR
-        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.skip_tests != true }}
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -145,7 +156,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag & push
-        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.skip_tests != true }}
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.skip_tests != true && !contains(github.event.head_commit.message, '[skip tests]') }}
         run: |
           IMAGE="${{ steps.image.outputs.name }}"
           docker tag social-media-api:latest "$IMAGE:${{ github.sha }}"
