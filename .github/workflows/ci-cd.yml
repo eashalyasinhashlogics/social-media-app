@@ -27,6 +27,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Added: GitHub-hosted runners can hit memory pressure during heavy
+      # operations (alembic's autogenerate-style diff in particular). Swap
+      # gives the kernel headroom instead of SIGKILLing the process (exit 137).
+      - name: Add swap space
+        run: |
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
       - name: Resolve image name
         id: image
         run: |
@@ -48,10 +59,22 @@ jobs:
       - name: Start stack
         run: docker compose up -d --wait --wait-timeout 180
 
-      - name: Assert migrations applied cleanly
+      # Split into two steps (was one combined step) so a failure tells you
+      # exactly which command died, instead of both being lumped together.
+      - name: Assert alembic is at head
+        run: docker compose exec -T app alembic current
+
+      - name: Assert no model/migration drift
+        run: docker compose exec -T app alembic check
+
+      # Added: if it dies again, this tells you whether it was really memory
+      # (near-zero available RAM right before the kill) or something else.
+      - name: Diagnose resource usage on failure
+        if: failure()
         run: |
-          docker compose exec -T app alembic current
-          docker compose exec -T app alembic check
+          free -h
+          df -h
+          docker stats --no-stream
 
       - name: Assert API responds
         run: |
