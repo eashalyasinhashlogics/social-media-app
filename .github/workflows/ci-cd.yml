@@ -9,8 +9,12 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  API_URL: https://<your-subdomain>.duckdns.org
-  API_DOMAIN: <your-subdomain>.duckdns.org
+
+# Deploys must not overlap. Queue a second push behind the first rather than
+# cancelling it — a half-finished deploy is worse than a slow one.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-test:
@@ -165,13 +169,16 @@ jobs:
           DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
         run: |
           set -euo pipefail
-          ssh -i ~/.ssh/id_deploy "$EC2_USER@$EC2_HOST" \
-            "mkdir -p '$DEPLOY_PATH' && rm -rf '$DEPLOY_PATH/scripts' '$DEPLOY_PATH/deploy'"
-          scp -r -i ~/.ssh/id_deploy \
-            backend/docker-compose.yml backend/docker-compose.prod.yml backend/scripts backend/deploy \
+          ssh -i ~/.ssh/id_deploy "$EC2_USER@$EC2_HOST" "mkdir -p '$DEPLOY_PATH'"
+          # Only the compose files. Phase 3 adds backend/scripts and
+          # backend/deploy (nginx config + TLS setup) and restores the
+          # rm -rf / chmod +x handling those directories need.
+          #
+          # docker-compose.prod.yml is shipped now even though Phase 2 does not
+          # use it, so it is already in place when Phase 3 switches over.
+          scp -i ~/.ssh/id_deploy \
+            backend/docker-compose.yml backend/docker-compose.prod.yml \
             "$EC2_USER@$EC2_HOST:$DEPLOY_PATH/"
-          ssh -i ~/.ssh/id_deploy "$EC2_USER@$EC2_HOST" \
-            "chmod +x '$DEPLOY_PATH'/scripts/*.sh"
 
       - name: Deploy over SSH
         env:
@@ -196,26 +203,57 @@ jobs:
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
 
           export DOCKER_IMAGE="$IMAGE:latest"
-          COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
-          \$COMPOSE pull app
-          \$COMPOSE up -d
+          # Base file only in Phase 2, so the app stays published on
+          # 0.0.0.0:8000 and remains reachable while there is no nginx in
+          # front of it. Phase 3 adds -f docker-compose.prod.yml, which moves
+          # it to 127.0.0.1 and hands the public port to nginx.
+          #
+          # --no-build because the base file still carries a build: section
+          # and DEPLOY_PATH has no Dockerfile — without it a failed pull
+          # silently degrades into an attempted build instead of failing.
+          docker compose pull app
+          docker compose up -d --no-build
           docker image prune -f
 
           docker logout ghcr.io
-
-          if ! systemctl is-active --quiet nginx; then
-            echo "WARNING: host nginx is not running — HTTPS will fail." >&2
-          fi
           EOF
 
-      - name: Verify the deployed API is healthy over HTTPS
+      # Checked over SSH against loopback rather than over the public internet:
+      # the security group does not need port 8000 opened to GitHub's rotating
+      # runner IPs, and this step keeps working unchanged when Phase 3 moves
+      # the app behind nginx and closes 8000 entirely.
+      - name: Verify the deployed API is healthy
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          DEPLOY_PATH: ${{ secrets.EC2_DEPLOY_PATH }}
         run: |
-          for i in $(seq 1 20); do
-            if curl -fsS -m 5 "$API_URL/health" | grep -q '"status":"ok"'; then
-              echo "Deployed API healthy over HTTPS."; exit 0
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes \
+              "$EC2_USER@$EC2_HOST" 'bash -s' <<EOF
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+
+          for i in \$(seq 1 20); do
+            if curl -fsS -m 5 http://127.0.0.1:8000/health | grep -q '"status":"ok"'; then
+              echo "Deployed API is healthy."
+              # Migrations are the likeliest silent failure: the container can
+              # answer /health perfectly well while sitting on a stale schema,
+              # so assert head rather than just printing the revision.
+              if ! docker compose exec -T app alembic current 2>/dev/null | grep -q '(head)'; then
+                echo "ERROR: alembic is not at head after deploy." >&2
+                docker compose exec -T app alembic current
+                exit 1
+              fi
+              echo "Migrations are at head."
+              exit 0
             fi
-            echo "waiting for API... ($i/20)"; sleep 5
+            echo "waiting for API... (\$i/20)"; sleep 5
           done
+
           echo "API did not become healthy after deploy." >&2
+          docker compose ps
+          docker compose logs --tail 50 app
           exit 1
+          EOF

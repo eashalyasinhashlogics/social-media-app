@@ -1,3 +1,12 @@
+"""Print the UNIQUE / CHECK constraints, triggers and indexes in the database.
+
+A diagnostic script, not a test — see the note in tools/inspect_schema.py for
+why this moved out of tests/. Run from backend/:
+
+    python -m tools.inspect_constraints
+    docker compose exec app python -m tools.inspect_constraints
+"""
+
 import os
 import sys
 sys.path.insert(0, os.getcwd())
