@@ -33,23 +33,31 @@ jobs:
       #
       # ubuntu-latest images already ship with a swapfile active at boot, so
       # blindly fallocate-ing /swapfile fails with "Text file busy" (the
-      # kernel has that file mapped as live swap). Check first, and if one
-      # already exists, only create an additional file at a different path
-      # rather than touching the existing one.
+      # kernel has that file mapped as live swap). That also means "is any
+      # swap on?" is always true here, so the old check-then-skip version of
+      # this step always took the "already active" branch and never actually
+      # added anything on top of the stock swap. Instead, top up to a fixed
+      # TOTAL using a separate file, so we always get real extra headroom no
+      # matter what the runner starts with.
       - name: Ensure swap space
         run: |
-          echo "Swap before:"; free -h
-          if sudo swapon --show | grep -q .; then
-            echo "Swap already active on this runner — leaving it as is."
+          echo "Swap before:"; free -h; sudo swapon --show
+          TARGET_SWAP_MB=8192
+          CURRENT_SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')
+          echo "Current swap: ${CURRENT_SWAP_MB}MB, target: ${TARGET_SWAP_MB}MB"
+          if [ "$CURRENT_SWAP_MB" -ge "$TARGET_SWAP_MB" ]; then
+            echo "Swap already sufficient — leaving it as is."
           else
+            NEED_MB=$(( TARGET_SWAP_MB - CURRENT_SWAP_MB ))
             SWAPFILE=/mnt/swapfile-ci
-            sudo fallocate -l 4G "$SWAPFILE" 2>/dev/null || \
-              sudo dd if=/dev/zero of="$SWAPFILE" bs=1M count=4096
+            echo "Topping up by ${NEED_MB}MB at $SWAPFILE..."
+            sudo fallocate -l "${NEED_MB}M" "$SWAPFILE" 2>/dev/null || \
+              sudo dd if=/dev/zero of="$SWAPFILE" bs=1M count="$NEED_MB"
             sudo chmod 600 "$SWAPFILE"
             sudo mkswap "$SWAPFILE"
             sudo swapon "$SWAPFILE"
           fi
-          echo "Swap after:"; free -h
+          echo "Swap after:"; free -h; sudo swapon --show
 
       - name: Resolve image name
         id: image
