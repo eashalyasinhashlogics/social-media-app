@@ -1,10 +1,14 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { authAPI } from '@/lib/api'
 
-export default function VerifyEmailPage() {
+// useSearchParams() opts the tree up to the nearest Suspense boundary out of
+// prerendering. Without the boundary in the default export below, `next build`
+// fails on this route ("should be wrapped in a suspense boundary") - it only
+// surfaces in a production build, never in `next dev`.
+function VerifyEmailForm() {
   const router = useRouter()
   const params = useSearchParams()
   const email = params.get('email') || ''
@@ -208,5 +212,17 @@ export default function VerifyEmailPage() {
         `}</style>
       </div>
     </div>
+  )
+}
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="bg-[#f8fafc] flex flex-col items-center justify-center min-h-screen p-[20px]" />
+      }
+    >
+      <VerifyEmailForm />
+    </Suspense>
   )
 }
