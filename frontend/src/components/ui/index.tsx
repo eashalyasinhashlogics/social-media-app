@@ -51,23 +51,24 @@ export function Input({ type = 'text', placeholder, value, onChange, icon, label
   )
 }
 
-export function Button({ children, onClick, disabled, variant = 'primary', type = 'button' }: {
+export function Button({ children, onClick, disabled, variant = 'primary', type = 'button', className = '' }: {
   children: React.ReactNode
   onClick?: () => void
   disabled?: boolean
   variant?: 'primary' | 'outline'
   type?: 'button' | 'submit'
+  className?: string
 }) {
   if (variant === 'outline') {
     return (
       <button type={type} onClick={onClick} disabled={disabled}
-        className="w-full py-3 px-4 border-2 border-gray-200 rounded-xl font-medium text-gray-700 hover:border-purple-400 hover:text-purple-600 transition-all flex items-center justify-center gap-2 bg-white disabled:opacity-60 disabled:cursor-not-allowed">
+        className={`w-full py-3 px-4 border-2 border-gray-200 rounded-xl font-medium text-gray-700 hover:border-purple-400 hover:text-purple-600 transition-all flex items-center justify-center gap-2 bg-white disabled:opacity-60 disabled:cursor-not-allowed ${className}`}>
         {children}
       </button>
     )
   }
   return (
-    <button type={type} onClick={onClick} disabled={disabled} className="btn-primary">
+    <button type={type} onClick={onClick} disabled={disabled} className={`btn-primary ${className}`}>
       {children}
     </button>
   )
