@@ -49,7 +49,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secretpassword}
       POSTGRES_DB: ${POSTGRES_DB:-social_media_dev}
     ports:
-      # Host 5432 belongs to the native postgres cluster, 5433 and 5434 to other
+
       # local projects — publish on 5435 so this stack can run alongside them.
       # The app still reaches it as postgres:5432 over the compose network, and
       # the prod overlay drops this mapping entirely.
